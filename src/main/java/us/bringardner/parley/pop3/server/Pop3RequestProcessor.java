@@ -50,7 +50,6 @@ public class Pop3RequestProcessor extends AbstractCommandProcessor implements PO
 	}
 
 	private static final SecureRandom RANDOM = new SecureRandom();
-	private static final int MAX_LOGIN_ATTEMPTS = 3;
 
 	private volatile State state = State.AUTHORIZATION;
 	/** UTF-8 mode, set by the UTF8 command (RFC 6856). */
@@ -390,7 +389,7 @@ public class Pop3RequestProcessor extends AbstractCommandProcessor implements PO
 		default:
 			loginFailedDelay();
 			replyErr(CODE_AUTH + " Invalid user name or password");
-			if (++loginAttempts >= MAX_LOGIN_ATTEMPTS) {
+			if (getPop3Server().isTooManyLoginFailures(++loginAttempts)) {
 				stop();
 			}
 		}

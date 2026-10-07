@@ -758,4 +758,20 @@ public class TestPop3Server {
 		assertTrue(p.waitFor(60, TimeUnit.SECONDS), "keytool didn't finish");
 		assertEquals(0, p.exitValue(), "keytool failed: " + output);
 	}
+
+	/** The shared MaxLoginAttempts setting */
+	@Test
+	public void testMaxLoginAttempts() throws Exception {
+		maildrop("tony");
+		server.setMaxLoginAttempts(2);
+		try (Client c = new Client()) {
+			c.cmd("USER tony");
+			assertTrue(c.cmd("PASS wrong").startsWith("-ERR [AUTH]"));
+			c.cmd("USER tony");
+			assertTrue(c.cmd("PASS wrong again").startsWith("-ERR [AUTH]"));
+			assertNull(c.readLine(), "closed after 2 failed logins");
+		} finally {
+			server.setMaxLoginAttempts(3);
+		}
+	}
 }

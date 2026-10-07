@@ -51,7 +51,8 @@ import us.bringardner.parley.pop3.POP3;
  * <tr><td>JPop3.root</td><td>/pop3 (C:/pop3 on Windows)</td><td>Maildrop root</td></tr>
  * <tr><td>JPop3.fileSource</td><td>default factory</td><td>FileSource factory for the root</td></tr>
  * <tr><td>JPop3.autologout</td><td>600000 ms</td><td>Idle sessions are closed (RFC 1939: at least 10 minutes)</td></tr>
- * <tr><td>JPop3.loginFailureDelay</td><td>1000 ms</td><td>Delay before replying to a failed login</td></tr>
+ * <tr><td>LoginFailureDelay (or JPop3.loginFailureDelay)</td><td>1000 ms</td><td>Delay before replying to a failed login</td></tr>
+ * <tr><td>MaxLoginAttempts</td><td>3</td><td>Failed logins before the connection is closed</td></tr>
  * <tr><td>JPop3.requireTls</td><td>false</td><td>Refuse USER, PASS, APOP and AUTH until STLS (or implicit TLS)</td></tr>
  * <tr><td>JPop3.utf8Downgrade</td><td>surrogate</td><td>For sessions without UTF8: send messages with
  * UTF-8 headers as RFC 6858 surrogates, or "reject" them with -ERR [UTF8]</td></tr>
@@ -99,7 +100,6 @@ public class Pop3Server extends Server implements POP3 {
 	public static final String UTF8_DOWNGRADE_PROP = POP3_NAME + ".utf8Downgrade";
 
 	private volatile int autologout = Integer.getInteger(AUTOLOGOUT_PROP, DEFAULT_AUTOLOGOUT);
-	private volatile int loginFailureDelay = Integer.getInteger(LOGIN_FAILURE_DELAY_PROP, DEFAULT_LOGIN_FAILURE_DELAY);
 	private volatile boolean requireTls = Boolean.getBoolean(REQUIRE_TLS_PROP);
 	private volatile Utf8Downgrade utf8Downgrade = Utf8Downgrade.parse(System.getProperty(UTF8_DOWNGRADE_PROP, "surrogate"));
 
@@ -336,15 +336,13 @@ public class Pop3Server extends Server implements POP3 {
 		setMaxIdleConnection(autologout);
 	}
 
-	public int getLoginFailureDelay() {
-		return loginFailureDelay;
-	}
-
-	public void setLoginFailureDelay(int loginFailureDelay) {
-		if (loginFailureDelay < 0) {
-			throw new IllegalArgumentException("loginFailureDelay must be >= 0");
-		}
-		this.loginFailureDelay = loginFailureDelay;
+	/**
+	 * The shared LoginFailureDelay setting (see AbstractCoreServer) defaults to the older
+	 * {@value #LOGIN_FAILURE_DELAY_PROP} system property, else {@value #DEFAULT_LOGIN_FAILURE_DELAY} ms.
+	 */
+	@Override
+	protected int getDefaultLoginFailureDelay() {
+		return Integer.getInteger(LOGIN_FAILURE_DELAY_PROP, DEFAULT_LOGIN_FAILURE_DELAY);
 	}
 
 	public boolean isRequireTls() {
