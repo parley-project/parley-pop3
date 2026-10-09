@@ -1,28 +1,18 @@
 package us.bringardner.parley.pop3.server;
 
-import java.io.File;
-import java.io.FileInputStream;
+import us.bringardner.parley.net.server.ServerMain;
+import us.bringardner.parley.mail.server.AbstractMailServer;
 import java.io.IOException;
-import java.io.InputStream;
-import java.net.Socket;
 import java.util.Locale;
-import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
 
-import javax.net.ssl.SSLContext;
 
-import us.bringardner.parley.core.ILogger.Level;
 import us.bringardner.parley.files.FileSource;
-import us.bringardner.parley.files.FileSourceFactory;
 import us.bringardner.parley.mail.Message;
-import us.bringardner.parley.net.Connection;
-import us.bringardner.parley.net.IConnection;
-import us.bringardner.parley.net.IConnectionFactory;
 import us.bringardner.parley.net.IProcessor;
 import us.bringardner.parley.net.IProcessorFactory;
 import us.bringardner.parley.net.server.IAccessControlList;
 import us.bringardner.parley.net.server.IPrincipal;
-import us.bringardner.parley.net.server.Server;
 import us.bringardner.parley.pop3.POP3;
 
 /**
@@ -61,7 +51,7 @@ import us.bringardner.parley.pop3.POP3;
  * SecureBaseObject, prefixed with "Pop3Server." (Pop3Server.KeyStoreName,
  * Pop3Server.KeyStorePassword, ...).
  */
-public class Pop3Server extends Server implements POP3 {
+public class Pop3Server extends AbstractMailServer implements POP3 {
 
 	private static final long serialVersionUID = 1L;
 
@@ -99,37 +89,26 @@ public class Pop3Server extends Server implements POP3 {
 
 	public static final String UTF8_DOWNGRADE_PROP = POP3_NAME + ".utf8Downgrade";
 
-	private volatile int autologout = Integer.getInteger(AUTOLOGOUT_PROP, DEFAULT_AUTOLOGOUT);
-	private volatile boolean requireTls = Boolean.getBoolean(REQUIRE_TLS_PROP);
 	private volatile Utf8Downgrade utf8Downgrade = Utf8Downgrade.parse(System.getProperty(UTF8_DOWNGRADE_PROP, "surrogate"));
 
-	private FileSource maildropRoot;
-	private FileSourceFactory factory = FileSourceFactory.getDefaultFactory();
-	private volatile Boolean tlsAvailable;
 
 	/** Maildrops in use, by canonical path (RFC 1939: one session per maildrop). */
 	private final ConcurrentHashMap<String, Pop3RequestProcessor> locks = new ConcurrentHashMap<>();
 
-	private final class ServerConnection extends Connection {
-		ServerConnection(Socket socket, boolean useCRLF, Level logLevel) throws IOException {
-			super(socket, useCRLF);
-			getLogger().setLevel(logLevel);
-		}
-
-		/** STLS uses the server's key store. */
-		@Override
-		public SSLContext getSSLContext(String sslOrTls) throws IOException {
-			return Pop3Server.this.getSSLContext(sslOrTls);
-		}
+	public Pop3Server(int port, String name, boolean secure) {
+		super(port, name, "Pop3Server", secure);
+		initMe();
+		finishInit();
 	}
 
-	public Pop3Server(int port, String name, boolean secure) {
-		super(port, name);
-		setPropertyPrefix("Pop3Server");
-		setSecure(secure);
-		setDaemon(false);
-		initMe();
-		getLogger().setLevel(Level.INFO);
+	@Override
+	protected String getRootProperty() {
+		return ROOT_PROP;
+	}
+
+	@Override
+	protected void onAutologoutChanged(int autologout) {
+		setMaxIdleConnection(autologout);
 	}
 
 	public Pop3Server() {
@@ -150,30 +129,7 @@ public class Pop3Server extends Server implements POP3 {
 	}
 
 	public static void main(String[] args) throws Exception {
-		System.out.println("\nStarting Pop3Server with " + args.length + " args");
-		for (int idx = 0; idx < args.length; idx++) {
-			if (args[idx].startsWith("-D")) {
-				String[] tmp = args[idx].substring(2).split("=", 2);
-				if (tmp.length == 2) {
-					System.out.println("\t" + tmp[0] + "=" + tmp[1]);
-					System.setProperty(tmp[0], tmp[1]);
-				} else {
-					System.out.println("Invalid arg = " + args[idx]);
-				}
-			} else if (idx + 1 < args.length) {
-				System.out.println("\t" + args[idx] + "=" + args[idx + 1]);
-				System.setProperty(args[idx++], args[idx]);
-			}
-		}
-		String tmp = System.getProperty(CONFIG_PROP);
-		if (tmp != null) {
-			System.out.println("Looking for " + tmp);
-			Properties prop = System.getProperties();
-			try (InputStream in = new FileInputStream(new File(tmp))) {
-				prop.load(in);
-			}
-			System.out.println("Loaded properties from " + tmp);
-		}
+		ServerMain.configure("Pop3Server", args, CONFIG_PROP);
 		boolean secure = Boolean.parseBoolean(System.getProperty(POP3_NAME + ".secure", "false"));
 		int port = Integer.getInteger(POP3_NAME + ".port", secure ? POP3S_PORT : POP3_PORT);
 		Pop3Server server = new Pop3Server(port, POP3_NAME, secure);
@@ -191,62 +147,16 @@ public class Pop3Server extends Server implements POP3 {
 				return ret;
 			}
 		});
-		setConnectionFactory(new IConnectionFactory() {
-			@Override
-			public IConnection getConnection(Socket socket) throws IOException {
-				return new ServerConnection(socket, true, Pop3Server.this.getLogger().getLevel());
-			}
-		});
-		setMaxIdleConnection(autologout);
-
-		String tmp = System.getProperty(FILE_SOURCE_PROP);
-		if (tmp != null) {
-			factory = FileSourceFactory.getFileSourceFactory(tmp.toLowerCase(Locale.ROOT));
-		}
-		tmp = System.getProperty(ROOT_PROP);
-		if (tmp == null) {
-			tmp = System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("win") ? DEFAULT_ROOT_WINDOWS : DEFAULT_ROOT;
-		}
-		try {
-			maildropRoot = factory.createFileSource(tmp);
-		} catch (IOException e) {
-			logInfo("Error attempting to set the maildrop root " + tmp + " using the " + factory.getTypeId() + " factory");
-		}
+		initAutologout(AUTOLOGOUT_PROP, DEFAULT_AUTOLOGOUT);
+		setMaxIdleConnection(getAutologout());
+		setRequireTls(Boolean.getBoolean(REQUIRE_TLS_PROP));
+		initMaildropRoot(FILE_SOURCE_PROP, null, ROOT_PROP, null, DEFAULT_ROOT, DEFAULT_ROOT_WINDOWS);
 
 		// trigger access control initialization (AuthenticationProvider property)
-		IAccessControlList acl = getAccessControl();
-		if (acl == null) {
-			logInfo("No access control is configured for " + getName() + "; no one can log in");
-		}
+		warnIfNoAccessControl();
 	}
 
 	// ------------------------------------------------------------------ maildrops
-
-	public FileSource getMaildropRoot() throws IOException {
-		if (maildropRoot == null) {
-			throw new IOException("The maildrop root is not configured (see " + ROOT_PROP + ")");
-		}
-		if (!maildropRoot.exists()) {
-			maildropRoot.mkdirs();
-		}
-		return maildropRoot;
-	}
-
-	public void setMaildropRoot(FileSource root) throws IOException {
-		if (!root.exists()) {
-			if (!root.mkdirs()) {
-				throw new IOException("Can't create the maildrop root " + root);
-			}
-		} else if (!root.isDirectory()) {
-			throw new IOException("The maildrop root is not a directory: " + root);
-		}
-		this.maildropRoot = root;
-		this.factory = root.getFileSourceFactory();
-	}
-
-	public FileSourceFactory getFileSourceFactory() {
-		return factory;
-	}
 
 	/**
 	 * The maildrop directory of a user: the principal's {@code maildrop}
@@ -304,37 +214,7 @@ public class Pop3Server extends Server implements POP3 {
 		locks.remove(key, owner);
 	}
 
-	/** True if a TLS context can be created (STLS is offered only then). */
-	public boolean isTlsAvailable() {
-		Boolean ret = tlsAvailable;
-		if (ret == null) {
-			try {
-				// a key store must be configured: without keys a TLS handshake can only fail
-				javax.net.ssl.KeyManager[] km = getKeyManagers();
-				ret = km != null && km.length > 0 && getSSLContext("TLS") != null;
-			} catch (Exception e) {
-				logDebug("TLS is not available: " + e);
-				ret = false;
-			}
-			tlsAvailable = ret;
-		}
-		return ret;
-	}
-
 	// ------------------------------------------------------------------ settings
-
-	public int getAutologout() {
-		return autologout;
-	}
-
-	/** Close sessions idle for this long (ms). RFC 1939 requires at least 10 minutes. */
-	public void setAutologout(int autologout) {
-		if (autologout <= 0) {
-			throw new IllegalArgumentException("autologout must be > 0");
-		}
-		this.autologout = autologout;
-		setMaxIdleConnection(autologout);
-	}
 
 	/**
 	 * The shared LoginFailureDelay setting (see AbstractCoreServer) defaults to the older
@@ -343,15 +223,6 @@ public class Pop3Server extends Server implements POP3 {
 	@Override
 	protected int getDefaultLoginFailureDelay() {
 		return Integer.getInteger(LOGIN_FAILURE_DELAY_PROP, DEFAULT_LOGIN_FAILURE_DELAY);
-	}
-
-	public boolean isRequireTls() {
-		return requireTls;
-	}
-
-	/** Refuse logins (USER, PASS, APOP, AUTH) on a connection that isn't using TLS. */
-	public void setRequireTls(boolean requireTls) {
-		this.requireTls = requireTls;
 	}
 
 	public Utf8Downgrade getUtf8Downgrade() {

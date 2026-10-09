@@ -1,8 +1,8 @@
 package us.bringardner.parley.pop3.server.commands;
 
 import java.io.IOException;
-import java.util.Locale;
 
+import us.bringardner.parley.net.server.AbstractCommand;
 import us.bringardner.parley.net.server.ICommandProcessor;
 import us.bringardner.parley.net.server.IPermission;
 import us.bringardner.parley.net.server.IRequestContext;
@@ -16,34 +16,13 @@ import us.bringardner.parley.pop3.server.Pop3RequestProcessor.State;
  * Base for POP3 commands. By default a command is valid in the TRANSACTION state
  * and needs the READ permission.
  */
-public abstract class BaseCommand implements Pop3Command, POP3 {
+public abstract class BaseCommand extends AbstractCommand implements Pop3Command, POP3 {
 
 	private static final long serialVersionUID = 1L;
 
-	private String name;
-	private String help;
 
 	public BaseCommand(String command) {
-		this.name = command.toUpperCase(Locale.ROOT);
-		this.help = "No help available for " + name;
-	}
-
-	@Override
-	public String getName() {
-		return name;
-	}
-
-	public void setName(String name) {
-		this.name = name;
-	}
-
-	@Override
-	public String getHelp() {
-		return help;
-	}
-
-	public void setHelp(String help) {
-		this.help = help;
+		super(command);
 	}
 
 	@Override

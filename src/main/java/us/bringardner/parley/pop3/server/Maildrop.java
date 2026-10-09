@@ -1,7 +1,6 @@
 package us.bringardner.parley.pop3.server;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
+import us.bringardner.parley.io.IoUtils;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -235,7 +234,7 @@ public class Maildrop {
 			surrogate(e).writeTo(out);
 			return;
 		}
-		try (InputStream in = new BufferedInputStream(e.file.getInputStream(), 64 * 1024)) {
+		try (InputStream in = IoUtils.buffered(e.file.getInputStream())) {
 			byte[] buf = new byte[64 * 1024];
 			int n;
 			while ((n = in.read(buf)) > 0) {
@@ -325,7 +324,7 @@ public class Maildrop {
 	/** Count a stored message as RETR sends it. */
 	static DotStuffingOutputStream.Counter count(FileSource f) throws IOException {
 		DotStuffingOutputStream.Counter c = new DotStuffingOutputStream.Counter();
-		try (InputStream in = new BufferedInputStream(f.getInputStream(), 64 * 1024)) {
+		try (InputStream in = IoUtils.buffered(f.getInputStream())) {
 			byte[] buf = new byte[64 * 1024];
 			int n;
 			while ((n = in.read(buf)) > 0) {
@@ -390,7 +389,7 @@ public class Maildrop {
 				SEQUENCE.incrementAndGet() % 100_000_000L, RANDOM.nextInt(), MESSAGE_SUFFIX);
 		FileSource tmp = directory.getChild("." + name + ".tmp");
 		FileSource target = directory.getChild(name);
-		try (OutputStream out = new BufferedOutputStream(tmp.getOutputStream(), 64 * 1024)) {
+		try (OutputStream out = IoUtils.buffered(tmp.getOutputStream())) {
 			writer.write(out);
 		} catch (IOException | RuntimeException e) {
 			tmp.delete();

@@ -1,5 +1,6 @@
 package us.bringardner.parley.pop3.server;
 
+import us.bringardner.parley.core.util.Hex;
 import java.io.BufferedOutputStream;
 import java.io.FilterOutputStream;
 import java.io.IOException;
@@ -19,7 +20,7 @@ import us.bringardner.parley.core.ILogger;
 import us.bringardner.parley.files.FileSource;
 import us.bringardner.parley.mail.SaslPrep;
 import us.bringardner.parley.net.IConnection;
-import us.bringardner.parley.net.server.AbstractCommandProcessor;
+import us.bringardner.parley.mail.server.AbstractMailProcessor;
 import us.bringardner.parley.net.server.FileBasedAcl;
 import us.bringardner.parley.net.server.IAccessControlList;
 import us.bringardner.parley.net.server.ICommand;
@@ -32,7 +33,7 @@ import us.bringardner.parley.pop3.POP3;
  * and runs the command classes from {@link Pop3CommandFactory}; it also holds the
  * session state (AUTHORIZATION, TRANSACTION, UPDATE) and the open {@link Maildrop}.
  */
-public class Pop3RequestProcessor extends AbstractCommandProcessor implements POP3 {
+public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 {
 
 	private static final long serialVersionUID = 1L;
 
@@ -59,7 +60,6 @@ public class Pop3RequestProcessor extends AbstractCommandProcessor implements PO
 	private final String timestamp;
 	private transient Maildrop maildrop;
 	private String lockKey;
-	private int loginAttempts;
 	private String lastError;
 
 	/**
@@ -249,16 +249,6 @@ public class Pop3RequestProcessor extends AbstractCommandProcessor implements PO
 		return (Pop3Server) getServer();
 	}
 
-	/** True if the connection uses TLS (implicit, or after STLS). */
-	public boolean isTls() {
-		IConnection con = getConnection();
-		return con != null && con.isSecure();
-	}
-
-	/** True if logins must wait for TLS on this connection. */
-	public boolean isLoginBlockedUntilTls() {
-		return getPop3Server().isRequireTls() && !isTls();
-	}
 
 	/** True after a successful UTF8 command (RFC 6856). */
 	public boolean isUtf8Mode() {
@@ -279,12 +269,7 @@ public class Pop3RequestProcessor extends AbstractCommandProcessor implements PO
 		if (isLoginBlockedUntilTls()) {
 			return LoginResult.TLS_REQUIRED;
 		}
-		user = SaslPrep.prepare(user, false);
-		password = SaslPrep.prepare(password, false);
-		if (user == null || password == null || user.isEmpty()) {
-			return LoginResult.FAILED;
-		}
-		IPrincipal p = getServer().authenticate(user, password.getBytes(StandardCharsets.UTF_8));
+		IPrincipal p = authenticate(user, password);
 		return p == null ? LoginResult.FAILED : openMaildrop(p);
 	}
 
@@ -326,11 +311,7 @@ public class Pop3RequestProcessor extends AbstractCommandProcessor implements PO
 			MessageDigest md = MessageDigest.getInstance("MD5");
 			md.update(a);
 			md.update(b);
-			StringBuilder sb = new StringBuilder();
-			for (byte x : md.digest()) {
-				sb.append(Character.forDigit((x >> 4) & 0xf, 16)).append(Character.forDigit(x & 0xf, 16));
-			}
-			return sb.toString();
+			return Hex.encode(md.digest());
 		} catch (NoSuchAlgorithmException e) {
 			throw new IllegalStateException(e);
 		}
@@ -389,20 +370,8 @@ public class Pop3RequestProcessor extends AbstractCommandProcessor implements PO
 		default:
 			loginFailedDelay();
 			replyErr(CODE_AUTH + " Invalid user name or password");
-			if (getPop3Server().isTooManyLoginFailures(++loginAttempts)) {
+			if (tooManyLoginFailures()) {
 				stop();
-			}
-		}
-	}
-
-	/** Wait before replying to a failed login (see Pop3Server.setLoginFailureDelay). */
-	public void loginFailedDelay() {
-		int delay = getPop3Server().getLoginFailureDelay();
-		if (delay > 0) {
-			try {
-				Thread.sleep(delay);
-			} catch (InterruptedException e) {
-				Thread.currentThread().interrupt();
 			}
 		}
 	}
@@ -420,8 +389,8 @@ public class Pop3RequestProcessor extends AbstractCommandProcessor implements PO
 	}
 
 	/** STLS: switch the connection to TLS. Any USER given before is forgotten (RFC 2595). */
-	public void startTls() throws IOException {
-		getConnection().negotiateSecureSocket("TLS");
+	@Override
+	protected void afterTls() {
 		tempStorage.clear();
 	}
 

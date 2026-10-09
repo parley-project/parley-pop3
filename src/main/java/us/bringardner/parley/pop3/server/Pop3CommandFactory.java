@@ -1,13 +1,9 @@
 package us.bringardner.parley.pop3.server;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 
+import us.bringardner.parley.net.server.AbstractCommandFactory;
 import us.bringardner.parley.net.server.ICommand;
-import us.bringardner.parley.net.server.ICommandFactory;
-import us.bringardner.parley.net.server.IRequestContext;
 import us.bringardner.parley.pop3.server.commands.Apop;
 import us.bringardner.parley.pop3.server.commands.Auth;
 import us.bringardner.parley.pop3.server.commands.Capa;
@@ -29,11 +25,11 @@ import us.bringardner.parley.pop3.server.commands.Utf8;
  * Maps POP3 command names to their command classes (as FtpCommandFactory does
  * for FTP). Commands can be replaced or added with {@link #addCommand(ICommand)}.
  */
-public class Pop3CommandFactory implements ICommandFactory {
+public class Pop3CommandFactory extends AbstractCommandFactory {
 
 	private static final long serialVersionUID = 1L;
 
-	private static final Map<String, ICommand> commands = Collections.synchronizedMap(new HashMap<>());
+	private static final Map<String, ICommand> commands = newRegistry();
 
 	static {
 		// AUTHORIZATION state (RFC 1939, RFC 2595, RFC 5034, RFC 6856)
@@ -57,18 +53,11 @@ public class Pop3CommandFactory implements ICommandFactory {
 		addCommand(new Uidl());
 	}
 
+	public Pop3CommandFactory() {
+		super(commands);
+	}
+
 	public static void addCommand(ICommand cmd) {
-		commands.put(cmd.getName().toUpperCase(Locale.ROOT), cmd);
-	}
-
-	/** The command for the line's first token, or null if there is none. */
-	@Override
-	public ICommand getCommand(IRequestContext context) {
-		String name = context.getFirstToken();
-		return name == null ? null : getCommand(name);
-	}
-
-	public ICommand getCommand(String name) {
-		return commands.get(name.toUpperCase(Locale.ROOT));
+		register(commands, cmd);
 	}
 }

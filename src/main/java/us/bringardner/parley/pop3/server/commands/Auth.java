@@ -1,10 +1,9 @@
 package us.bringardner.parley.pop3.server.commands;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 import java.util.Locale;
 
+import us.bringardner.parley.mail.Sasl;
 import us.bringardner.parley.net.server.IRequestContext;
 import us.bringardner.parley.pop3.server.Pop3RequestProcessor;
 
@@ -54,17 +53,16 @@ public class Auth extends NoAuthReqBaseCommand {
 		}
 		byte[] decoded;
 		try {
-			decoded = response.equals("=") ? new byte[0] : Base64.getDecoder().decode(response);
+			decoded = Sasl.decodeResponse(response);
 		} catch (IllegalArgumentException e) {
 			processor.replyErr("Invalid base64 in the AUTH response");
 			return;
 		}
-		// authzid NUL authcid NUL passwd
-		String[] parts = new String(decoded, StandardCharsets.UTF_8).split("\\u0000", -1);
-		if (parts.length != 3 || parts[1].isEmpty() || (!parts[0].isEmpty() && !parts[0].equals(parts[1]))) {
+		String[] credentials = Sasl.parsePlain(decoded);
+		if (credentials == null) {
 			processor.replyLoginResult(Pop3RequestProcessor.LoginResult.FAILED);
 			return;
 		}
-		processor.replyLoginResult(processor.login(parts[1], parts[2]));
+		processor.replyLoginResult(processor.login(credentials[0], credentials[1]));
 	}
 }
