@@ -1,8 +1,9 @@
 package us.bringardner.parley.pop3.server.commands;
 
 import java.io.IOException;
-import java.util.ArrayList;
 
+import us.bringardner.parley.net.capability.CapabilityRegistry;
+import us.bringardner.parley.net.server.ICommandProcessor;
 import us.bringardner.parley.net.server.IRequestContext;
 import us.bringardner.parley.pop3.server.Pop3RequestProcessor;
 
@@ -20,29 +21,38 @@ public class Capa extends NoAuthReqBaseCommand {
 	}
 
 	@Override
-	public boolean isValidIn(Pop3RequestProcessor.State state) {
-		return state != Pop3RequestProcessor.State.UPDATE;
+	public java.util.Set<Pop3RequestProcessor.State> getValidStates() {
+		return BEFORE_UPDATE;
 	}
+
+	private static Pop3RequestProcessor pop3(ICommandProcessor p) {
+		return (Pop3RequestProcessor) p;
+	}
+
+	/** The login capabilities are offered only before login, and not while TLS must come first. */
+	private static boolean canLogin(ICommandProcessor p) {
+		return pop3(p).getState() == Pop3RequestProcessor.State.AUTHORIZATION && !pop3(p).isLoginBlockedUntilTls();
+	}
+
+	/** What a POP3 server offers, and when (RFC 2449, RFC 5034, RFC 2595, RFC 6856). */
+	private static final CapabilityRegistry CAPABILITIES = new CapabilityRegistry()
+			.add(TOP)
+			.add(UIDL)
+			.add("RESP-CODES")
+			.add("AUTH-RESP-CODE")
+			.add("PIPELINING")
+			.add(UTF8, USER) // RFC 6856: UTF8 command and UTF-8 user names and passwords
+			.addWhen(Capa::canLogin, USER)
+			.addDynamicRequireParams("SASL", p -> canLogin(p) ? Auth.mechanisms(pop3(p)) : null)
+			.addWhen(p -> {
+				Pop3RequestProcessor processor = pop3(p);
+				return processor.getState() == Pop3RequestProcessor.State.AUTHORIZATION && !processor.isTls()
+						&& !processor.isUtf8Mode() && processor.getPop3Server().isTlsAvailable();
+			}, STLS)
+			.add("IMPLEMENTATION", "BjlEmail-Pop3");
 
 	@Override
 	public void execute(Pop3RequestProcessor processor, IRequestContext context) throws IOException {
-		java.util.List<String> caps = new ArrayList<>();
-		caps.add(TOP);
-		caps.add(UIDL);
-		caps.add("RESP-CODES");
-		caps.add("AUTH-RESP-CODE");
-		caps.add("PIPELINING");
-		caps.add(UTF8 + " USER"); // RFC 6856: UTF8 command and UTF-8 user names and passwords
-		if (processor.getState() == Pop3RequestProcessor.State.AUTHORIZATION) {
-			if (!processor.isLoginBlockedUntilTls()) {
-				caps.add(USER);
-				caps.add("SASL " + Auth.PLAIN);
-			}
-			if (!processor.isTls() && !processor.isUtf8Mode() && processor.getPop3Server().isTlsAvailable()) {
-				caps.add(STLS);
-			}
-		}
-		caps.add("IMPLEMENTATION BjlEmail-Pop3");
-		processor.replyMultiLine("Capability list follows", caps);
+		processor.replyMultiLine("Capability list follows", CAPABILITIES.resolve(processor).toLines());
 	}
 }

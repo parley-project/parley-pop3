@@ -1,6 +1,9 @@
 package us.bringardner.parley.pop3.server.commands;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.Set;
 
 import us.bringardner.parley.net.server.AbstractCommand;
 import us.bringardner.parley.net.server.ICommandProcessor;
@@ -35,10 +38,17 @@ public abstract class BaseCommand extends AbstractCommand implements Pop3Command
 		return READ_PERMISSION;
 	}
 
+	/** The states a command may be used in; by default only TRANSACTION. */
 	@Override
-	public boolean isValidIn(State state) {
-		return state == State.TRANSACTION;
+	public Set<State> getValidStates() {
+		return TRANSACTION_ONLY;
 	}
+
+	protected static final Set<State> AUTHORIZATION_ONLY = Collections.unmodifiableSet(EnumSet.of(State.AUTHORIZATION));
+	protected static final Set<State> TRANSACTION_ONLY = Collections.unmodifiableSet(EnumSet.of(State.TRANSACTION));
+	/** Every state in which the connection is still open for commands. */
+	protected static final Set<State> BEFORE_UPDATE = Collections.unmodifiableSet(
+			EnumSet.of(State.AUTHORIZATION, State.TRANSACTION));
 
 	/**
 	 * Parse a message number argument (RFC 1939: a message number, not one marked

@@ -20,8 +20,8 @@ public class Quit extends NoAuthReqBaseCommand {
 	}
 
 	@Override
-	public boolean isValidIn(Pop3RequestProcessor.State state) {
-		return state != Pop3RequestProcessor.State.UPDATE;
+	public java.util.Set<Pop3RequestProcessor.State> getValidStates() {
+		return BEFORE_UPDATE;
 	}
 
 	@Override

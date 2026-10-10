@@ -1,5 +1,7 @@
 package us.bringardner.parley.pop3.server.commands;
 
+import java.util.Set;
+
 import us.bringardner.parley.pop3.server.Pop3RequestProcessor.State;
 
 /** Base for commands of the AUTHORIZATION state, which need no login. */
@@ -17,7 +19,7 @@ public abstract class NoAuthReqBaseCommand extends BaseCommand {
 	}
 
 	@Override
-	public boolean isValidIn(State state) {
-		return state == State.AUTHORIZATION;
+	public Set<State> getValidStates() {
+		return AUTHORIZATION_ONLY;
 	}
 }

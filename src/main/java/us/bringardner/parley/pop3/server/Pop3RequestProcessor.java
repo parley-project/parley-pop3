@@ -26,6 +26,7 @@ import us.bringardner.parley.net.server.IAccessControlList;
 import us.bringardner.parley.net.server.ICommand;
 import us.bringardner.parley.net.server.IPrincipal;
 import us.bringardner.parley.net.server.IRequestContext;
+import us.bringardner.parley.net.server.StateMachine;
 import us.bringardner.parley.pop3.POP3;
 
 /**
@@ -52,7 +53,10 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 
 	private static final SecureRandom RANDOM = new SecureRandom();
 
-	private volatile State state = State.AUTHORIZATION;
+	/** AUTHORIZATION, then TRANSACTION after a login, then UPDATE after QUIT (RFC 1939 section 3). */
+	private final StateMachine<State> states = new StateMachine<>(State.AUTHORIZATION)
+			.allow(State.AUTHORIZATION, State.TRANSACTION)
+			.allow(State.TRANSACTION, State.UPDATE);
 	/** UTF-8 mode, set by the UTF8 command (RFC 6856). */
 	private volatile boolean utf8Mode;
 	private final transient Map<String, Object> tempStorage = new HashMap<>();
@@ -124,11 +128,11 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 		if (isDebug()) {
 			cmdUsed.put(cmd.getName(), cmd.getName());
 		}
-		if (!cmd.isValidIn(state)) {
-			reply(REPLY_ERR, cmd.getName() + " is not valid in the " + state + " state");
+		if (!cmd.isValidIn(states.get())) {
+			reply(REPLY_ERR, cmd.getName() + " is not valid in the " + states.get() + " state");
 			return;
 		}
-		if (state == State.TRANSACTION && cmd.requiresAuthorization() && !isAuthorized(cmd.getPermission())) {
+		if (states.is(State.TRANSACTION) && cmd.requiresAuthorization() && !isAuthorized(cmd.getPermission())) {
 			reply(REPLY_ERR, "Permission denied for " + cmd.getName());
 			return;
 		}
@@ -234,7 +238,12 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 	// ------------------------------------------------------------------ login
 
 	public State getState() {
-		return state;
+		return states.get();
+	}
+
+	@Override
+	protected StateMachine<?> getStateMachine() {
+		return states;
 	}
 
 	public Maildrop getMaildrop() {
@@ -337,7 +346,7 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 			}
 			lockKey = key;
 			setPrincipal(p);
-			state = State.TRANSACTION;
+			states.moveTo(State.TRANSACTION);
 			tempStorage.clear();
 			return LoginResult.OK;
 		} catch (IOException | RuntimeException e) {
@@ -414,7 +423,7 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 	 * @return the number of messages that could not be removed
 	 */
 	public int update() {
-		state = State.UPDATE;
+		states.moveTo(State.UPDATE);
 		int failed;
 		try {
 			failed = maildrop.commit();
