@@ -1,54 +1,19 @@
 package us.bringardner.parley.pop3.server;
 
-import java.io.FilterOutputStream;
-import java.io.IOException;
 import java.io.OutputStream;
 
 /**
- * Writes message content as a POP3 multi-line response (RFC 1939 section 3):
- * a line starting with "." gets an extra "." (byte-stuffing), a bare LF becomes
- * CRLF, and {@link #close()} ends the last line if needed and writes the
- * terminating ".". Closing also closes the underlying stream.
+ * Writes message content as a POP3 multi-line response (RFC 1939 section 3): a line starting
+ * with "." gets an extra ".", a bare LF becomes CRLF, and {@link #close()} ends the last line if
+ * needed and writes the terminating ".". Closing also closes the underlying stream.
+ * <p>
+ * The stuffing is {@link us.bringardner.parley.io.DotStuffingOutputStream} (a bare CR is left
+ * as it is); this class adds {@link Counter}, the size POP3 reports.
  */
-public class DotStuffingOutputStream extends FilterOutputStream {
-
-	private int prev = '\n'; // at the start of a line
+public class DotStuffingOutputStream extends us.bringardner.parley.io.DotStuffingOutputStream {
 
 	public DotStuffingOutputStream(OutputStream out) {
-		super(out);
-	}
-
-	@Override
-	public void write(int b) throws IOException {
-		b &= 0xff;
-		if (prev == '\n' && b == '.') {
-			out.write('.');
-		}
-		if (b == '\n' && prev != '\r') {
-			out.write('\r');
-		}
-		out.write(b);
-		prev = b;
-	}
-
-	@Override
-	public void write(byte[] b, int off, int len) throws IOException {
-		for (int i = off; i < off + len; i++) {
-			write(b[i]);
-		}
-	}
-
-	@Override
-	public void close() throws IOException {
-		if (prev != '\n') {
-			out.write('\r');
-			out.write('\n');
-		}
-		out.write('.');
-		out.write('\r');
-		out.write('\n');
-		prev = '\n';
-		super.close();
+		super(out, false);
 	}
 
 	/**

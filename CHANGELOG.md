@@ -23,6 +23,9 @@ The POP3 server of BjlEmail (`us.bringardner:bjl_email` 1.0.0-SNAPSHOT, never re
   with `Pop3SaslAuthenticator` supplying the login. The replies, error codes and the advertised
   `SASL PLAIN` are the same as before. Requires a parley-net that has `StateMachine`, the
   `capability` package and the `sasl` package.
+- Dot stuffing is parley-io's `DotStuffingOutputStream`; this module's class of the same name now
+  only adds the `Counter` that gives the size LIST and STAT report. Requires a parley-io that has
+  `DotStuffingOutputStream`.
 
 ### Unchanged
 
