@@ -86,8 +86,8 @@
 	<distributionManagement>
 		<repository>
 			<id>github</id>
-			<name>tony-bringardner</name>
-			<url>https://maven.pkg.github.com/tony-bringardner/parley-pop3</url>
+			<name>parley-project</name>
+			<url>https://maven.pkg.github.com/parley-project/parley-pop3</url>
 		</repository>
 	</distributionManagement>
 
