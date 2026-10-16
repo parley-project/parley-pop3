@@ -1,6 +1,6 @@
 # Changelog
 
-## parley-pop3 1.0.0 (unreleased)
+## parley-pop3 1.0.0 (2026-10-16)
 
 The POP3 server of BjlEmail (`us.bringardner:bjl_email` 1.0.0-SNAPSHOT, never released) is now
 **parley-pop3**, part of the Parley library family.
