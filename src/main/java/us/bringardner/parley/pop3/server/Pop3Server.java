@@ -53,7 +53,6 @@ import us.bringardner.parley.pop3.POP3;
  */
 public class Pop3Server extends AbstractMailServer implements POP3 {
 
-	private static final long serialVersionUID = 1L;
 
 	public static final String POP3_NAME = "JPop3";
 	public static final String CONFIG_PROP = POP3_NAME + ".properties";
