@@ -64,6 +64,8 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 	private final String timestamp;
 	private transient Maildrop maildrop;
 	private String lockKey;
+	/** The maildrop's lock in the store's lock domain (reaches other servers), or null. */
+	private us.bringardner.parley.net.lock.NamedLock maildropLock;
 	private String lastError;
 
 	/**
@@ -339,8 +341,19 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 				return LoginResult.IN_USE;
 			}
 			try {
+				// one session per maildrop across every server sharing the store (RFC 1939 [IN-USE])
+				us.bringardner.parley.net.lock.LockDomain d = us.bringardner.parley.mail.store.MailboxRegistry.get().domainOf(dir);
+				if (d != null) {
+					maildropLock = d.request(us.bringardner.parley.mail.store.MailboxRegistry.lockName("maildrop", d, dir))
+							.exclusive().reentrant(false).tryAcquire();
+					if (maildropLock == null) {
+						server.unlockMaildrop(key, this);
+						return LoginResult.IN_USE;
+					}
+				}
 				maildrop = Maildrop.open(dir, utf8Mode);
 			} catch (IOException | RuntimeException e) {
+				closeMaildropLock();
 				server.unlockMaildrop(key, this);
 				throw e;
 			}
@@ -426,7 +439,7 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 		states.moveTo(State.UPDATE);
 		int failed;
 		try {
-			failed = maildrop.commit();
+			failed = maildrop.commit(maildropLock);
 		} catch (RuntimeException e) {
 			logError("Error removing deleted messages", e);
 			failed = 1;
@@ -436,9 +449,17 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 	}
 
 	private void releaseMaildrop() {
+		closeMaildropLock();
 		if (lockKey != null) {
 			getPop3Server().unlockMaildrop(lockKey, this);
 			lockKey = null;
+		}
+	}
+
+	private void closeMaildropLock() {
+		if (maildropLock != null) {
+			maildropLock.close();
+			maildropLock = null;
 		}
 	}
 

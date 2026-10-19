@@ -210,9 +210,33 @@ public class Maildrop {
 	 * @return the number of messages that could not be removed
 	 */
 	public int commit() {
+		return commit(null);
+	}
+
+	/**
+	 * Remove the messages marked deleted, for as long as the session still holds its lock: once it
+	 * is lost (a server paused past its lease), nothing more is deleted, as RFC 1939 asks of a
+	 * session that didn't finish.
+	 *
+	 * @param lock the session's maildrop lock, or null
+	 * @return the number of messages that could not be removed
+	 */
+	public int commit(us.bringardner.parley.net.lock.NamedLock lock) {
 		int failed = 0;
+		boolean lost = false;
 		for (Entry e : entries) {
 			if (e.deleted) {
+				if (!lost && lock != null) {
+					try {
+						lock.checkValid();
+					} catch (IOException gone) {
+						lost = true;
+					}
+				}
+				if (lost) {
+					failed++;
+					continue;
+				}
 				try {
 					if (e.file.exists() && !e.file.delete()) {
 						failed++;
