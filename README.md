@@ -78,13 +78,13 @@ Each setting can be passed as a system property or set with the matching `Pop3Se
 
 ### Behaviour notes
 
-- **One session per maildrop** (RFC 1939). A second login gets `-ERR [IN-USE]`. The lock is released at QUIT or when the connection drops.
+- **One session per maildrop** (RFC 1939), across every server sharing the store. A second login gets `-ERR [IN-USE]`. The lock is released at QUIT or when the connection drops; a crashed server's is freed with it (the store's own locks) or when its lease runs out (leases).
 - **Deletions** are applied only at QUIT. If the connection drops, nothing is deleted.
 - **Snapshot:** a session sees the messages that were in the maildrop when it logged in. Mail delivered later appears in the next session.
 - **Sizes** in STAT and LIST are exact: the octets RETR sends, with CRLF line ends, before byte-stuffing. They are computed when the maildrop is opened.
 - **Streaming:** RETR and TOP stream from the maildrop, so messages can be of any size.
 - **Failed logins** wait `JPop3.loginFailureDelay` ms. The connection is closed after 3 failures. Unknown users get the same replies as wrong passwords.
-- **Locks** are held in the server process, so only one Pop3Server should serve a maildrop root.
+- **Several servers on one store**: set `parley.mail.sharedStore` (`off`, the default, `host` or `cluster`; see parley-mail). The maildrop lock is a lock in the store's lock domain, so it reaches the other servers; at QUIT, messages are deleted only while the session still holds it.
 
 ### Internationalized mail (RFC 6856)
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## parley-pop3 1.1.0 (unreleased)
+
+### Added
+
+- **Several servers on one store** (parley-mail 1.1.0's `parley.mail.sharedStore`): the maildrop lock (one session
+  per maildrop, `-ERR [IN-USE]`) reaches every server sharing the store, through parley-net's locks. At QUIT, the
+  deleted messages are removed only while the session still holds the lock (`Maildrop.commit(NamedLock)`).
+
 ## parley-pop3 1.0.0 (2026-10-16)
 
 The POP3 server of BjlEmail (`us.bringardner:bjl_email` 1.0.0-SNAPSHOT, never released) is now
