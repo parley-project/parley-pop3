@@ -76,7 +76,9 @@ public class Auth extends NoAuthReqBaseCommand {
 		});
 		switch (outcome.getStatus()) {
 		case SUCCESS:
-			processor.replyLoginResult(LoginResult.OK);
+			// PLAIN logged in while checking the password; SCRAM proved the user without one
+			LoginResult ok = authenticator.getLastResult();
+			processor.replyLoginResult(ok != null ? ok : processor.loginVerified(outcome.getUser()));
 			break;
 		case FAILED:
 			LoginResult result = authenticator.getLastResult();
