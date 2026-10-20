@@ -41,7 +41,11 @@ import us.bringardner.parley.files.FileSource;
 import us.bringardner.parley.files.FileSourceFactory;
 import us.bringardner.parley.mail.Address;
 import us.bringardner.parley.mail.Message;
+import us.bringardner.parley.net.sasl.ISaslClient;
+import us.bringardner.parley.net.sasl.SaslException;
+import us.bringardner.parley.net.sasl.ScramMechanism;
 import us.bringardner.parley.net.server.FileBasedAcl;
+import us.bringardner.parley.net.server.IAccessControlList;
 import us.bringardner.parley.net.server.IServer;
 import us.bringardner.parley.pop3.server.Maildrop;
 import us.bringardner.parley.pop3.server.Pop3Server;
@@ -459,6 +463,78 @@ public class TestPop3Server {
 
 	private static String plain(String authzid, String user, String password) {
 		return Base64.getEncoder().encodeToString((authzid + "\0" + user + "\0" + password).getBytes(StandardCharsets.UTF_8));
+	}
+
+	/** Users who all have SCRAM credentials, so the server offers SCRAM. */
+	static IAccessControlList scramAcl() {
+		final String carol = FileBasedAcl.hashPasswordWithScram("carolpw".toCharArray());
+		final String nobody = FileBasedAcl.hashPasswordWithScram("pw".toCharArray());
+		return new FileBasedAcl() {
+			{
+				parseLine("carol, " + carol + ", READ|WRITE");
+				parseLine("noread, " + nobody + ", WRITE");
+			}
+		};
+	}
+
+	/** AUTH with SCRAM; returns the final reply. */
+	private static String scram(Client c, ScramMechanism m, String user, String password) throws IOException {
+		ISaslClient client = m.client(user, password);
+		Base64.Encoder enc = Base64.getEncoder();
+		String line = c.cmd("AUTH " + m.getName() + " " + enc.encodeToString(client.initialResponse()));
+		while (line.startsWith("+ ")) {
+			try {
+				line = c.cmd(enc.encodeToString(client.evaluateChallenge(Base64.getDecoder().decode(line.substring(2).trim()))));
+			} catch (SaslException e) {
+				return c.cmd("*");
+			}
+		}
+		return line;
+	}
+
+	@Test
+	public void testAuthScram() throws Exception {
+		try (Client c = new Client()) {
+			// the test users include a hashed password without SCRAM credentials: SCRAM isn't offered
+			assertTrue(c.cmd("CAPA").startsWith("+OK"));
+			assertFalse(String.join(" ", c.multi()).contains("SCRAM"));
+			assertTrue(c.cmd("AUTH SCRAM-SHA-256").startsWith("-ERR"));
+		}
+		IAccessControlList old = server.getAccessControl();
+		server.setAccessControl(scramAcl());
+		try {
+			maildrop("carol");
+			try (Client c = new Client()) {
+				assertTrue(c.cmd("CAPA").startsWith("+OK"));
+				assertTrue(c.multi().contains("SASL SCRAM-SHA-256 SCRAM-SHA-1 PLAIN"));
+				String reply = scram(c, ScramMechanism.SHA_256, "carol", "carolpw");
+				assertTrue(reply.startsWith("+OK Maildrop has"), reply);
+				assertTrue(c.cmd("STAT").startsWith("+OK"));
+				c.cmd("QUIT");
+			}
+			try (Client c = new Client()) {
+				String reply = scram(c, ScramMechanism.SHA_1, "carol", "carolpw");
+				assertTrue(reply.startsWith("+OK"), reply);
+				c.cmd("QUIT");
+			}
+			// one failure per connection: too many close it
+			try (Client c = new Client()) {
+				assertTrue(scram(c, ScramMechanism.SHA_256, "carol", "wrong").startsWith("-ERR"));
+			}
+			try (Client c = new Client()) {
+				assertTrue(scram(c, ScramMechanism.SHA_256, "nobody", "carolpw").startsWith("-ERR"));
+			}
+			try (Client c = new Client()) {
+				assertTrue(scram(c, ScramMechanism.SHA_256, "noread", "pw").startsWith("-ERR"), "needs READ");
+			}
+			try (Client c = new Client()) {
+				// the password still works with PLAIN
+				assertTrue(c.cmd("AUTH PLAIN " + plain("", "carol", "carolpw")).startsWith("+OK"));
+				c.cmd("QUIT");
+			}
+		} finally {
+			server.setAccessControl(old);
+		}
 	}
 
 	@Test

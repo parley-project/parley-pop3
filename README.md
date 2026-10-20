@@ -40,7 +40,7 @@ The design follows parley-ftp:
 | `FtpCommand`, `commands.*` | `Pop3Command`, `commands.*` | One class per command |
 | `FTP` | `POP3` | Protocol constants |
 
-Supported: USER, PASS, APOP, QUIT, STAT, LIST, RETR, DELE, NOOP, RSET, TOP, UIDL (RFC 1939); CAPA and response codes (RFC 2449); STLS (RFC 2595); AUTH PLAIN (RFC 5034); UTF8 (RFC 6856).
+Supported: USER, PASS, APOP, QUIT, STAT, LIST, RETR, DELE, NOOP, RSET, TOP, UIDL (RFC 1939); CAPA and response codes (RFC 2449); STLS (RFC 2595); AUTH PLAIN and SCRAM (RFC 5034); UTF8 (RFC 6856). SCRAM-SHA-256 and SCRAM-SHA-1 (RFC 5802, 7677) are offered when the access control list keeps SCRAM credentials for every user (parley-net's `FileBasedAcl --scram`, or parley-net-acl-jdbc).
 
 ```java
 Pop3Server server = new Pop3Server();          // port 110

@@ -4,6 +4,9 @@
 
 ### Added
 
+- **SCRAM-SHA-256 and SCRAM-SHA-1** for `AUTH`, offered in CAPA when the server's access control list keeps SCRAM
+  credentials for every user (parley-net 1.1.0: `FileBasedAcl --scram`, or parley-net-acl-jdbc). The user is
+  logged in with `Pop3RequestProcessor.loginVerified(user)` after the proof, with the same permission checks as a password login.
 - **Several servers on one store** (parley-mail 1.1.0's `parley.mail.sharedStore`): the maildrop lock (one session
   per maildrop, `-ERR [IN-USE]`) reaches every server sharing the store, through parley-net's locks. At QUIT, the
   deleted messages are removed only while the session still holds the lock (`Maildrop.commit(NamedLock)`).

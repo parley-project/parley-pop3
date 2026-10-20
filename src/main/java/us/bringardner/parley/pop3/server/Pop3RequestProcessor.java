@@ -285,6 +285,20 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 	}
 
 	/**
+	 * Log in a user a SASL mechanism has already proven (AUTH SCRAM-*): the maildrop is opened as
+	 * for {@link #login(String, String)}.
+	 *
+	 * @since 1.1.0
+	 */
+	public LoginResult loginVerified(String user) {
+		if (isLoginBlockedUntilTls()) {
+			return LoginResult.TLS_REQUIRED;
+		}
+		IPrincipal p = verifiedPrincipal(user);
+		return p == null ? LoginResult.FAILED : openMaildrop(p);
+	}
+
+	/**
 	 * Log in with APOP (RFC 1939 section 7): the digest is MD5(timestamp + secret).
 	 * This needs the user's password stored in plain text in the access control
 	 * list; users with hashed passwords can't use APOP. The user name and the
