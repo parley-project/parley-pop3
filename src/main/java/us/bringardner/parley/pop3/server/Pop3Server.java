@@ -199,7 +199,8 @@ public class Pop3Server extends AbstractMailServer implements POP3 {
 	 */
 	public FileSource deliver(String user, Message message) throws IOException {
 		IAccessControlList acl = getAccessControl();
-		IPrincipal p = acl == null ? null : acl.getPrincipal(user);
+		// a list that can't answer throws: the message isn't delivered to a guessed maildrop
+		IPrincipal p = acl == null ? null : acl.findPrincipal(user);
 		FileSource dir = p != null ? getMaildropDirectory(p) : getMaildropDirectory(user);
 		return Maildrop.deliver(dir, message);
 	}
