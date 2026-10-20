@@ -3,6 +3,7 @@ package us.bringardner.parley.pop3.server;
 import us.bringardner.parley.net.sasl.ISaslAuthenticator;
 import us.bringardner.parley.net.sasl.ScramCredentials;
 import us.bringardner.parley.net.sasl.ScramMechanism;
+import us.bringardner.parley.net.server.AccessControlUnavailableException;
 import us.bringardner.parley.pop3.server.Pop3RequestProcessor.LoginResult;
 
 /**
@@ -20,6 +21,7 @@ public class Pop3SaslAuthenticator implements ISaslAuthenticator {
 
 	private final Pop3RequestProcessor processor;
 	private LoginResult lastResult;
+	private boolean unavailable;
 
 	public Pop3SaslAuthenticator(Pop3RequestProcessor processor) {
 		this.processor = processor;
@@ -48,6 +50,16 @@ public class Pop3SaslAuthenticator implements ISaslAuthenticator {
 	/** SCRAM credentials from the server's access control list (the name prepared with SASLprep). */
 	@Override
 	public ScramCredentials getScramCredentials(String user, String hash) {
-		return processor.getScramCredentials(user, hash);
+		try {
+			return processor.getScramCredentials(user, hash);
+		} catch (AccessControlUnavailableException e) {
+			unavailable = true;
+			return null;
+		}
+	}
+
+	/** @return true if the access control list couldn't answer, so the login failed for that reason */
+	public boolean isUnavailable() {
+		return unavailable || lastResult == LoginResult.UNAVAILABLE;
 	}
 }

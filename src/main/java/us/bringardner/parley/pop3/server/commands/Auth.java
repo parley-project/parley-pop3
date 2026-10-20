@@ -82,6 +82,9 @@ public class Auth extends NoAuthReqBaseCommand {
 			break;
 		case FAILED:
 			LoginResult result = authenticator.getLastResult();
+			if (result == null && authenticator.isUnavailable()) {
+				result = LoginResult.UNAVAILABLE;
+			}
 			processor.replyLoginResult(result != null ? result : LoginResult.FAILED);
 			break;
 		case CANCELLED:

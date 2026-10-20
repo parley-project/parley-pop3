@@ -22,6 +22,7 @@ import us.bringardner.parley.mail.SaslPrep;
 import us.bringardner.parley.net.IConnection;
 import us.bringardner.parley.mail.server.AbstractMailProcessor;
 import us.bringardner.parley.net.server.FileBasedAcl;
+import us.bringardner.parley.net.server.AccessControlUnavailableException;
 import us.bringardner.parley.net.server.IAccessControlList;
 import us.bringardner.parley.net.server.ICommand;
 import us.bringardner.parley.net.server.IPrincipal;
@@ -48,7 +49,9 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 
 	/** The outcome of a login attempt. */
 	public enum LoginResult {
-		OK, FAILED, IN_USE, TLS_REQUIRED, ERROR
+		OK, FAILED, IN_USE, TLS_REQUIRED, ERROR,
+		/** The access control list can't answer now (its database is down, say): try again later. @since 1.1.0 */
+		UNAVAILABLE
 	}
 
 	private static final SecureRandom RANDOM = new SecureRandom();
@@ -280,7 +283,13 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 		if (isLoginBlockedUntilTls()) {
 			return LoginResult.TLS_REQUIRED;
 		}
-		IPrincipal p = authenticate(user, password);
+		IPrincipal p;
+		try {
+			p = checkLogin(user, password);
+		} catch (AccessControlUnavailableException e) {
+			logError("Can't check the login of " + user + ": " + e.getMessage());
+			return LoginResult.UNAVAILABLE;
+		}
 		return p == null ? LoginResult.FAILED : openMaildrop(p);
 	}
 
@@ -294,7 +303,13 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 		if (isLoginBlockedUntilTls()) {
 			return LoginResult.TLS_REQUIRED;
 		}
-		IPrincipal p = verifiedPrincipal(user);
+		IPrincipal p;
+		try {
+			p = verifiedPrincipal(user);
+		} catch (AccessControlUnavailableException e) {
+			logError("Can't look up " + user + ": " + e.getMessage());
+			return LoginResult.UNAVAILABLE;
+		}
 		return p == null ? LoginResult.FAILED : openMaildrop(p);
 	}
 
@@ -313,7 +328,13 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 			return LoginResult.FAILED;
 		}
 		IAccessControlList acl = getServer().getAccessControl();
-		IPrincipal stored = acl == null ? null : acl.getPrincipal(user);
+		IPrincipal stored;
+		try {
+			stored = acl == null ? null : acl.findPrincipal(user);
+		} catch (AccessControlUnavailableException e) {
+			logError("Can't look up " + user + ": " + e.getMessage());
+			return LoginResult.UNAVAILABLE;
+		}
 		byte[] secret = stored == null ? null : stored.getCredentials();
 		if (secret == null || new String(secret, StandardCharsets.UTF_8).startsWith(FileBasedAcl.HASH_PREFIX)) {
 			return LoginResult.FAILED;
@@ -327,7 +348,13 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 				digest.toLowerCase(Locale.ROOT).getBytes(StandardCharsets.US_ASCII))) {
 			return LoginResult.FAILED;
 		}
-		IPrincipal p = getServer().authenticate(user, secret);
+		IPrincipal p;
+		try {
+			p = getServer().checkLogin(user, secret);
+		} catch (AccessControlUnavailableException e) {
+			logError("Can't look up " + user + ": " + e.getMessage());
+			return LoginResult.UNAVAILABLE;
+		}
 		return p == null ? LoginResult.FAILED : openMaildrop(p);
 	}
 
@@ -402,6 +429,10 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 			break;
 		case ERROR:
 			replyErr(CODE_SYS_TEMP + " The maildrop can't be opened");
+			break;
+		case UNAVAILABLE:
+			// not the client's fault: no delay, not counted as a failed login
+			replyErr(CODE_SYS_TEMP + " Logins can't be checked now, try again later");
 			break;
 		default:
 			loginFailedDelay();
