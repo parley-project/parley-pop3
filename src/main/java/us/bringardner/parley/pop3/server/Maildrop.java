@@ -226,19 +226,28 @@ public class Maildrop {
 		boolean lost = false;
 		for (Entry e : entries) {
 			if (e.deleted) {
-				if (!lost && lock != null) {
-					try {
-						lock.checkValid();
-					} catch (IOException gone) {
-						lost = true;
-					}
-				}
 				if (lost) {
 					failed++;
 					continue;
 				}
 				try {
-					if (e.file.exists() && !e.file.delete()) {
+					if (!e.file.exists()) {
+						continue;
+					}
+					// checked last thing before the delete: a lease holder can't lose its lock for a
+					// renew interval after a successful check (it stops trusting its lease that long
+					// before another server may take it over), so only a pause that long here could
+					// let a delete through after a takeover
+					if (lock != null) {
+						try {
+							lock.checkValid();
+						} catch (IOException gone) {
+							lost = true;
+							failed++;
+							continue;
+						}
+					}
+					if (!e.file.delete()) {
 						failed++;
 					}
 				} catch (IOException ex) {
