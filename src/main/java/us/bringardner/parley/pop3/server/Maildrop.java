@@ -7,22 +7,21 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicLong;
 
 import us.bringardner.parley.files.FileSource;
 import us.bringardner.parley.mail.Downgrader;
 import us.bringardner.parley.mail.Message;
 
 /**
- * A user's maildrop: a directory (a {@link FileSource}) holding one message per
- * file. Files whose names start with "." are ignored, so a message being
- * delivered (written to a hidden temp file, then renamed) is never seen half
- * written.
+ * A user's maildrop: the INBOX directory of the user's parley-mail store (a {@link FileSource}),
+ * holding one message per file. Files whose names start with "." are ignored, so a message being
+ * delivered (written to a hidden temp file, then renamed) is never seen half written. POP3 never
+ * writes messages: mail is delivered through the store
+ * ({@code us.bringardner.parley.mail.store.MailStore#deliver}, as SMTP's local delivery does).
  * <p>
  * A Maildrop is a snapshot taken when the session logs in (RFC 1939): messages
  * are numbered 1..n in name order, mail delivered later is seen in the next
@@ -34,11 +33,6 @@ import us.bringardner.parley.mail.Message;
  * {@link Downgrader}): RETR and TOP send the surrogate and LIST reports its size.
  */
 public class Maildrop {
-
-	public static final String MESSAGE_SUFFIX = ".eml";
-
-	private static final AtomicLong SEQUENCE = new AtomicLong();
-	private static final SecureRandom RANDOM = new SecureRandom();
 
 	/** One message of the maildrop. */
 	public static final class Entry {
@@ -389,49 +383,5 @@ public class Maildrop {
 		} catch (NoSuchAlgorithmException e) {
 			throw new IllegalStateException(e);
 		}
-	}
-
-	// ------------------------------------------------------------------ delivery
-
-	/**
-	 * Store a message in a maildrop directory. It is written to a hidden temp file
-	 * and then renamed, so a session never sees it half written. Messages are
-	 * named so that name order is delivery order.
-	 *
-	 * @return the stored message file
-	 */
-	public static FileSource deliver(FileSource directory, Message message) throws IOException {
-		return deliver(directory, out -> message.writeTo(out));
-	}
-
-	/** Store a message read from a stream (to its end; it isn't closed). */
-	public static FileSource deliver(FileSource directory, InputStream message) throws IOException {
-		return deliver(directory, out -> message.transferTo(out));
-	}
-
-	@FunctionalInterface
-	private interface Writer {
-		void write(OutputStream out) throws IOException;
-	}
-
-	private static FileSource deliver(FileSource directory, Writer writer) throws IOException {
-		if (!directory.exists() && !directory.mkdirs()) {
-			throw new IOException("Can't create maildrop " + directory.getAbsolutePath());
-		}
-		String name = String.format("%013d.%08d.%08x%s", System.currentTimeMillis(),
-				SEQUENCE.incrementAndGet() % 100_000_000L, RANDOM.nextInt(), MESSAGE_SUFFIX);
-		FileSource tmp = directory.getChild("." + name + ".tmp");
-		FileSource target = directory.getChild(name);
-		try (OutputStream out = IoUtils.buffered(tmp.getOutputStream())) {
-			writer.write(out);
-		} catch (IOException | RuntimeException e) {
-			tmp.delete();
-			throw e;
-		}
-		if (!tmp.renameTo(target)) {
-			tmp.delete();
-			throw new IOException("Can't store the message as " + target.getAbsolutePath());
-		}
-		return target;
 	}
 }

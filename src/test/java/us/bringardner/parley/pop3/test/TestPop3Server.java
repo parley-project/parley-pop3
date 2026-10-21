@@ -102,8 +102,31 @@ public class TestPop3Server {
 		return dir;
 	}
 
+	/** Deliver a message to a maildrop as SMTP does: through the user's parley-mail store. */
 	private static FileSource deliver(FileSource dir, String raw) throws IOException {
-		return Maildrop.deliver(dir, new java.io.ByteArrayInputStream(raw.getBytes(StandardCharsets.UTF_8)));
+		return deliver(dir, raw.getBytes(StandardCharsets.UTF_8));
+	}
+
+	private static FileSource deliver(FileSource dir, byte[] raw) throws IOException {
+		us.bringardner.parley.mail.store.MailStore store = new us.bringardner.parley.mail.store.MailStore(dir,
+				us.bringardner.parley.mail.store.MailboxRegistry.get());
+		store.init(false);
+		return store.deliver(new java.io.ByteArrayInputStream(raw), false).getFile();
+	}
+
+	/**
+	 * Put a message file into a maildrop as it is (LF line ends, say), as something other than
+	 * Parley might: POP3 must still serve it correctly.
+	 */
+	private static FileSource dropRaw(FileSource dir, String raw) throws IOException {
+		String name = String.format("%013d.%08d.%08x.eml", System.currentTimeMillis(), 1, raw.hashCode());
+		FileSource tmp = dir.getChild("." + name + ".tmp");
+		try (java.io.OutputStream out = tmp.getOutputStream()) {
+			out.write(raw.getBytes(StandardCharsets.UTF_8));
+		}
+		FileSource f = dir.getChild(name);
+		assertTrue(tmp.renameTo(f));
+		return f;
 	}
 
 	// ------------------------------------------------------------------ client
@@ -261,8 +284,9 @@ public class TestPop3Server {
 		built.setFrom(new Address("Tony", "tony", "bringardner.us"));
 		built.setSubject("Grüße");
 		built.setText("Hello\n.\nBye\n");
-		server.deliver("tony", built);
-		deliver(dir, RAW_LF);
+		deliver(dir, built.toByteArray());
+		Thread.sleep(2); // name order is delivery order
+		dropRaw(dir, RAW_LF);
 
 		byte[] expected1 = built.toByteArray();
 		byte[] expected2 = (RAW_LF.replace("\n", "\r\n") + "\r\n").getBytes(StandardCharsets.UTF_8);
