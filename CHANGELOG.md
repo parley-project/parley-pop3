@@ -21,6 +21,12 @@
   (`MailTestAcl.txt`, was `Pop3TestAcl.txt` here) and helpers. That the maildrop is the INBOX of the user's
   parley-mail store is tested against the store, without an IMAP server.
 
+### Removed (needs a code change)
+
+- `Pop3Server.deliver(user, message)`, `Maildrop.deliver(...)` and `Maildrop.MESSAGE_SUFFIX`: POP3 never writes
+  messages. Deliver through the user's parley-mail store, `MailStore.deliver(content, junk)`, as SMTP does; it
+  stores the message with CRLF line ends and indexes it, so IMAP and POP3 see the same message at once.
+
 ## parley-pop3 1.0.0 (2026-10-16)
 
 The POP3 server of BjlEmail (`us.bringardner:bjl_email` 1.0.0-SNAPSHOT, never released) is now

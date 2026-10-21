@@ -46,9 +46,11 @@ Supported: USER, PASS, APOP, QUIT, STAT, LIST, RETR, DELE, NOOP, RSET, TOP, UIDL
 Pop3Server server = new Pop3Server();          // port 110
 server.setMaildropRoot(rootFileSource);
 server.start();
-
-server.deliver("tony", message);               // local delivery, e.g. from SMTP
 ```
+
+POP3 never writes messages. Mail is delivered by SMTP, or by your code through the user's parley-mail store:
+`new MailStore(server.getMaildropDirectory("tony"), MailboxRegistry.get())`, `init(false)`, then
+`deliver(content, false)`.
 
 Or from the command line: `java us.bringardner.parley.pop3.server.Pop3Server -DJPop3.port=1110 -DJPop3.root=/var/mail/pop3`
 
@@ -57,7 +59,7 @@ Or from the command line: `java us.bringardner.parley.pop3.server.Pop3Server -DJ
 - **Users** come from the access control list, set up as for FtpServer with the `Pop3Server.AuthenticationProvider` property (for example `us.bringardner.parley.net.server.FileBasedAcl` with `Pop3Server.userFile`). See `MailTestAcl.txt` in parley-mail's test resources (the user file every mail protocol's tests share).
 - **Permissions:** READ is needed to log in and read mail; WRITE to delete it.
 - **Maildrops:** each user's maildrop is a directory under the root, named by the principal's `maildrop` parameter (default: the user name). Several users can share one maildrop.
-- **Messages** are files in the maildrop, in name order. Names starting with "." are ignored: `Maildrop.deliver` writes a hidden temp file and renames it, so a session never sees a message half written.
+- **Messages** are files in the maildrop, in name order. Names starting with "." are ignored: delivery (parley-mail's `MailStore.deliver`) writes a hidden temp file and renames it, so a session never sees a message half written.
 - **APOP** needs the user's password stored in plain text in the access list; users with `{PBKDF2}` hashes use USER/PASS or AUTH PLAIN.
 
 ### Configuration

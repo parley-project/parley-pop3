@@ -190,21 +190,6 @@ public class Pop3Server extends AbstractMailServer implements POP3 {
 		return dir;
 	}
 
-	/**
-	 * Deliver a message to a user's maildrop (for local delivery, e.g. from an
-	 * SMTP server). The user's {@code maildrop} parameter is used when the access
-	 * control list knows the user.
-	 *
-	 * @return the stored message file
-	 */
-	public FileSource deliver(String user, Message message) throws IOException {
-		IAccessControlList acl = getAccessControl();
-		// a list that can't answer throws: the message isn't delivered to a guessed maildrop
-		IPrincipal p = acl == null ? null : acl.findPrincipal(user);
-		FileSource dir = p != null ? getMaildropDirectory(p) : getMaildropDirectory(user);
-		return Maildrop.deliver(dir, message);
-	}
-
 	/** Lock a maildrop for a session; false if another session has it (RFC 1939 [IN-USE]). */
 	boolean lockMaildrop(String key, Pop3RequestProcessor owner) {
 		return locks.putIfAbsent(key, owner) == null;
