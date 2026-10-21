@@ -83,6 +83,7 @@ Each setting can be passed as a system property or set with the matching `Pop3Se
 - **One session per maildrop** (RFC 1939), across every server sharing the store. A second login gets `-ERR [IN-USE]`. The lock is released at QUIT or when the connection drops; a crashed server's is freed with it (the store's own locks) or when its lease runs out (leases).
 - **Deletions** are applied only at QUIT. If the connection drops, nothing is deleted.
 - **Snapshot:** a session sees the messages that were in the maildrop when it logged in. Mail delivered later appears in the next session.
+- **The shared store:** the maildrop is the INBOX of the user's parley-mail store, the mailbox IMAP serves. QUIT expunges the deleted messages from it (IMAP sessions are told at once), and RETR sets `\Seen`, so IMAP shows mail read over POP3 as read (TOP doesn't).
 - **Sizes** in STAT and LIST are exact: the octets RETR sends, with CRLF line ends, before byte-stuffing. They are computed when the maildrop is opened.
 - **Streaming:** RETR and TOP stream from the maildrop, so messages can be of any size.
 - **Failed logins** wait `JPop3.loginFailureDelay` ms. The connection is closed after 3 failures. Unknown users get the same replies as wrong passwords.

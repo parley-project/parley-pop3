@@ -3,6 +3,7 @@ package us.bringardner.parley.pop3.test;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static us.bringardner.parley.mail.test.MailTestSupport.ACL_FILE;
@@ -596,6 +597,63 @@ public class TestPop3Server {
 			assertEquals(1, folder.count(), "other mailboxes are left alone");
 		} finally {
 			registry.release(folder);
+		}
+	}
+
+	/** RETR sets \\Seen in the shared INBOX (so IMAP shows the message as read); TOP doesn't; QUIT expunges. */
+	@Test
+	public void testRetrSetsSeenAndQuitExpunges() throws Exception {
+		FileSource dir = maildrop("tony");
+		long one = deliverUid(dir, "Subject: one\r\n\r\n1\r\n");
+		long two = deliverUid(dir, "Subject: two\r\n\r\n2\r\n");
+		long three = deliverUid(dir, "Subject: three\r\n\r\n3\r\n");
+		us.bringardner.parley.mail.store.MailboxRegistry registry = us.bringardner.parley.mail.store.MailboxRegistry.get();
+		us.bringardner.parley.mail.store.MailStore store = new us.bringardner.parley.mail.store.MailStore(dir, registry);
+		// held open the whole time, as an IMAP session would
+		us.bringardner.parley.mail.store.Mailbox inbox = store.open("INBOX");
+		try {
+			try (Client c = new Client()) {
+				c.cmd("USER tony");
+				assertTrue(c.cmd("PASS secret").startsWith("+OK"));
+				assertTrue(c.cmd("RETR 1").startsWith("+OK"));
+				c.multi();
+				assertTrue(c.cmd("TOP 2 0").startsWith("+OK"));
+				c.multi();
+				assertTrue(c.cmd("DELE 3").startsWith("+OK"));
+				assertTrue(c.cmd("QUIT").startsWith("+OK"));
+			}
+			assertNull(inbox.get(three), "DELE and QUIT expunge it: open views are told at once");
+			assertTrue(inbox.hasFlag(inbox.get(one), "\\Seen"), "RETR sets \\Seen");
+			assertFalse(inbox.hasFlag(inbox.get(two), "\\Seen"), "TOP doesn't");
+
+			// without QUIT nothing is deleted, but what was read is still read
+			try (Client c = new Client()) {
+				c.cmd("USER tony");
+				assertTrue(c.cmd("PASS secret").startsWith("+OK"));
+				assertEquals("+OK 2 " + (inbox.get(one).getSize() + inbox.get(two).getSize()), c.cmd("STAT"));
+				assertTrue(c.cmd("RETR 2").startsWith("+OK"));
+				c.multi();
+				assertTrue(c.cmd("DELE 1").startsWith("+OK"));
+			} // connection dropped
+			waitFor(() -> inbox.get(two) != null && inbox.hasFlag(inbox.get(two), "\\Seen"));
+			assertNotNull(inbox.get(one), "no QUIT: nothing deleted");
+		} finally {
+			registry.release(inbox);
+		}
+	}
+
+	private static long deliverUid(FileSource dir, String raw) throws IOException {
+		us.bringardner.parley.mail.store.MailStore store = new us.bringardner.parley.mail.store.MailStore(dir,
+				us.bringardner.parley.mail.store.MailboxRegistry.get());
+		store.init(false);
+		return store.deliver(new java.io.ByteArrayInputStream(raw.getBytes(StandardCharsets.UTF_8)), false).getUid();
+	}
+
+	private static void waitFor(java.util.function.BooleanSupplier condition) throws InterruptedException {
+		long until = System.currentTimeMillis() + 10000;
+		while (!condition.getAsBoolean()) {
+			assertTrue(System.currentTimeMillis() < until, "timed out");
+			Thread.sleep(20);
 		}
 	}
 

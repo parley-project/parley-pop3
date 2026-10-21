@@ -394,6 +394,7 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 				}
 				maildrop = Maildrop.open(dir, utf8Mode);
 			} catch (IOException | RuntimeException e) {
+				maildrop = null;
 				closeMaildropLock();
 				server.unlockMaildrop(key, this);
 				throw e;
@@ -494,6 +495,13 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 	}
 
 	private void releaseMaildrop() {
+		if (maildrop != null) {
+			try {
+				maildrop.close();
+			} catch (IOException | RuntimeException e) {
+				logError("Can't save the flags of the maildrop", e);
+			}
+		}
 		closeMaildropLock();
 		if (lockKey != null) {
 			getPop3Server().unlockMaildrop(lockKey, this);

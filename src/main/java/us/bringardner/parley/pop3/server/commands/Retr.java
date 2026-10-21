@@ -30,6 +30,8 @@ public class Retr extends BaseCommand {
 		Maildrop.Entry e = message(processor, arg);
 		if (e != null && !processor.rejectUtf8(e)) {
 			processor.replyContent(e.getSize() + " octets", out -> processor.getMaildrop().writeMessage(e, out));
+			// read: IMAP shows it as read (RFC 1939 has no flags; TOP doesn't count)
+			processor.getMaildrop().markSeen(e);
 		}
 	}
 }

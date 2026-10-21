@@ -16,6 +16,11 @@
 
 ### Changed (no code change needed)
 
+- The maildrop is POP3's view of the INBOX of the user's parley-mail store (the mailbox IMAP serves), not its own
+  reading of the directory: the messages, their surrogates and deletions are the store's. QUIT expunges the deleted
+  messages from INBOX, so IMAP sessions are told at once; RETR sets `\Seen`, so IMAP shows the message as read
+  (TOP doesn't). The INBOX gets the store's hidden index on first use. `Maildrop` keeps its methods, plus
+  `markSeen`, `close`, `getStore` and `Entry.getMessage`. UIDLs are unchanged (from the file names).
 - The test classes are no longer published as a tests jar (`parley-pop3-<version>-tests.jar`): no other module
   uses them. The tests use parley-net's tests jar for their keystore and parley-mail's for the shared test users
   (`MailTestAcl.txt`, was `Pop3TestAcl.txt` here) and helpers. That the maildrop is the INBOX of the user's
