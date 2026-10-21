@@ -54,7 +54,7 @@ Or from the command line: `java us.bringardner.parley.pop3.server.Pop3Server -DJ
 
 ### Users and maildrops
 
-- **Users** come from the access control list, set up as for FtpServer with the `Pop3Server.AuthenticationProvider` property (for example `us.bringardner.parley.net.server.FileBasedAcl` with `Pop3Server.userFile`). See `src/test/resources/Pop3TestAcl.txt`.
+- **Users** come from the access control list, set up as for FtpServer with the `Pop3Server.AuthenticationProvider` property (for example `us.bringardner.parley.net.server.FileBasedAcl` with `Pop3Server.userFile`). See `MailTestAcl.txt` in parley-mail's test resources (the user file every mail protocol's tests share).
 - **Permissions:** READ is needed to log in and read mail; WRITE to delete it.
 - **Maildrops:** each user's maildrop is a directory under the root, named by the principal's `maildrop` parameter (default: the user name). Several users can share one maildrop.
 - **Messages** are files in the maildrop, in name order. Names starting with "." are ignored: `Maildrop.deliver` writes a hidden temp file and renames it, so a session never sees a message half written.
