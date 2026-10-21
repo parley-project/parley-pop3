@@ -1,5 +1,19 @@
 # Changelog
 
+## parley-pop3 2.0.0 (unreleased)
+
+### Changed (needs a configuration change)
+
+- **Property names** (Parley 2.0.0; the old names are no longer read): `JPop3.*` is `parley.mail.pop3.*`
+  (`parley.mail.pop3.autologout`, `.requireTls`, `.utf8Downgrade`, `.secure`, `.port`), and the maildrop root is
+  the shared `parley.mail.root` / `parley.mail.fileSource`. `JPop3.properties` is `parley.mail.pop3.configFile`.
+- A server's own settings are read with its prefix, `parley.mail.pop3` (was `Pop3Server`): the key store
+  (`parley.mail.pop3.keyStoreName` ...), limits and access control (`parley.mail.pop3.authenticationProvider`,
+  `parley.mail.pop3.userFile`). A server with implicit TLS uses `parley.mail.pop3s` (port
+  `parley.mail.pop3s.port`, 995).
+- `JPop3.loginFailureDelay` is now the server's `loginFailureDelay` (`parley.mail.pop3.loginFailureDelay`):
+  `LOGIN_FAILURE_DELAY_PROP` is gone.
+
 ## parley-pop3 1.1.0 (unreleased)
 
 ### Added

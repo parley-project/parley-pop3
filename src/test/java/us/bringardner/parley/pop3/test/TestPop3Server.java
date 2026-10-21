@@ -69,11 +69,11 @@ public class TestPop3Server {
 	@BeforeAll
 	public static void startServer() throws Exception {
 		ServerTestSupport.writeKeystore(new File(KEYSTORE));
-		System.setProperty("Pop3Server.KeyStoreName", KEYSTORE);
-		System.setProperty("Pop3Server.KeyStorePassword", ServerTestSupport.KEYSTORE_PASSWORD);
-		System.setProperty("Pop3Server.KeyStoreType", "PKCS12");
-		System.setProperty("Pop3Server." + FileBasedAcl.PROP_FILE_NAME, ACL_FILE);
-		System.setProperty("Pop3Server." + IServer.AUTHENTICATION_PROVIDER_PROPERTY, FileBasedAcl.class.getName());
+		System.setProperty("parley.mail.pop3.keyStoreName", KEYSTORE);
+		System.setProperty("parley.mail.pop3.keyStorePassword", ServerTestSupport.KEYSTORE_PASSWORD);
+		System.setProperty("parley.mail.pop3.keyStoreType", "PKCS12");
+		System.setProperty("parley.mail.pop3." + FileBasedAcl.PROP_FILE_NAME, ACL_FILE);
+		System.setProperty("parley.mail.pop3." + IServer.AUTHENTICATION_PROVIDER_PROPERTY, FileBasedAcl.class.getName());
 
 		root = FileSourceFactory.getDefaultFactory().createTempDirectory("pop3test");
 		server = new Pop3Server(0, Pop3Server.POP3_NAME, false);
@@ -935,7 +935,7 @@ public class TestPop3Server {
 	// ------------------------------------------------------------------ key store
 
 
-	/** The shared MaxLoginAttempts setting */
+	/** The shared maxLoginAttempts setting */
 	@Test
 	public void testMaxLoginAttempts() throws Exception {
 		maildrop("tony");

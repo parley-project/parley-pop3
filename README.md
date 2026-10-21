@@ -18,7 +18,8 @@ Requires Java 11 or later. Depends on `parley-mail` and `parley-net` (which brin
 
 > parley-pop3 was split out of `us.bringardner:bjl_email` (BjlEmail). `us.bringardner.net.pop3` is now
 > `us.bringardner.parley.pop3`. Property names that start with a class name change with the package;
-> the `Pop3Server.*` properties are unchanged.
+> the `Pop3Server.*` properties are unchanged. In 2.0.0 every property was renamed (`parley.mail.pop3.*`,
+> `parley.mail.root`): see the CHANGELOG.
 
 ## Build
 
@@ -52,11 +53,11 @@ POP3 never writes messages. Mail is delivered by SMTP, or by your code through t
 `new MailStore(server.getMaildropDirectory("tony"), MailboxRegistry.get())`, `init(false)`, then
 `deliver(content, false)`.
 
-Or from the command line: `java us.bringardner.parley.pop3.server.Pop3Server -DJPop3.port=1110 -DJPop3.root=/var/mail/pop3`
+Or from the command line: `java us.bringardner.parley.pop3.server.Pop3Server -Dparley.mail.pop3.port=1110 -Dparley.mail.root=/var/mail/pop3`
 
 ### Users and maildrops
 
-- **Users** come from the access control list, set up as for FtpServer with the `Pop3Server.AuthenticationProvider` property (for example `us.bringardner.parley.net.server.FileBasedAcl` with `Pop3Server.userFile`). See `MailTestAcl.txt` in parley-mail's test resources (the user file every mail protocol's tests share).
+- **Users** come from the access control list, set up as for FtpServer with the `parley.mail.pop3.authenticationProvider` property (for example `us.bringardner.parley.net.server.FileBasedAcl` with `parley.mail.pop3.userFile`). See `MailTestAcl.txt` in parley-mail's test resources (the user file every mail protocol's tests share).
 - **Permissions:** READ is needed to log in and read mail; WRITE to delete it.
 - **Maildrops:** each user's maildrop is a directory under the root, named by the principal's `maildrop` parameter (default: the user name). Several users can share one maildrop.
 - **Messages** are files in the maildrop, in name order. Names starting with "." are ignored: delivery (parley-mail's `MailStore.deliver`) writes a hidden temp file and renames it, so a session never sees a message half written.
@@ -68,15 +69,16 @@ Each setting can be passed as a system property or set with the matching `Pop3Se
 
 | Property | Default | Meaning |
 |---|---|---|
-| `JPop3.port` | 110 (995 if secure) | Port (used by `Pop3Server.main`) |
-| `JPop3.secure` | false | Implicit TLS |
-| `JPop3.root` | `/pop3` (`C:/pop3` on Windows) | Maildrop root |
-| `JPop3.fileSource` | default factory | FileSource factory for the root |
-| `JPop3.autologout` | 600000 ms | Idle sessions are closed. RFC 1939 requires at least 10 minutes. `setAutologout()` |
-| `JPop3.loginFailureDelay` | 1000 ms | Delay before replying to a failed login. `setLoginFailureDelay()` |
-| `JPop3.requireTls` | false | Refuse USER, PASS, APOP and AUTH until STLS (or implicit TLS). `setRequireTls()` |
-| `JPop3.utf8Downgrade` | `surrogate` | What a client that didn't send UTF8 gets for a message with UTF-8 headers: the RFC 6858 surrogate, or `reject` (`-ERR [UTF8]`). `setUtf8Downgrade()` |
-| `Pop3Server.KeyStoreName`, `Pop3Server.KeyStorePassword`, `Pop3Server.KeyStoreType` | none | Key store for STLS and implicit TLS. STLS is offered only when one is configured. |
+| `parley.mail.pop3.port` | 110 | Port (used by `Pop3Server.main`) |
+| `parley.mail.pop3.secure` | false | `main` starts a server with implicit TLS, on `parley.mail.pop3s.port` (995) |
+| `parley.mail.root` | `/pop3` (`C:/pop3` on Windows) | Maildrop root |
+| `parley.mail.fileSource` | default factory | FileSource factory for the root |
+| `parley.mail.pop3.autologout` | 600000 ms | Idle sessions are closed. RFC 1939 requires at least 10 minutes. `setAutologout()` |
+| `parley.mail.pop3.loginFailureDelay` | 1000 ms | Delay before replying to a failed login. `setLoginFailureDelay()` |
+| `parley.mail.pop3.requireTls` | false | Refuse USER, PASS, APOP and AUTH until STLS (or implicit TLS). `setRequireTls()` |
+| `parley.mail.pop3.utf8Downgrade` | `surrogate` | What a client that didn't send UTF8 gets for a message with UTF-8 headers: the RFC 6858 surrogate, or `reject` (`-ERR [UTF8]`). `setUtf8Downgrade()` |
+| `parley.mail.pop3.keyStoreName`, `parley.mail.pop3.keyStorePassword`, `parley.mail.pop3.keyStoreType` | none | Key store for STLS and implicit TLS. STLS is offered only when one is configured. |
+| `parley.mail.pop3.*` | | The listener's own settings use its prefix: the key store, the limits of parley-core's `AbstractCoreServer` (`maxConnections`, `maxLoginAttempts`, ...) and the access control list (`authenticationProvider`, `userFile`). A server with implicit TLS uses `parley.mail.pop3s`. |
 
 ### Behaviour notes
 
@@ -86,7 +88,7 @@ Each setting can be passed as a system property or set with the matching `Pop3Se
 - **The shared store:** the maildrop is the INBOX of the user's parley-mail store, the mailbox IMAP serves. QUIT expunges the deleted messages from it (IMAP sessions are told at once), and RETR sets `\Seen`, so IMAP shows mail read over POP3 as read (TOP doesn't).
 - **Sizes** in STAT and LIST are exact: the octets RETR sends, with CRLF line ends, before byte-stuffing. They are computed when the maildrop is opened.
 - **Streaming:** RETR and TOP stream from the maildrop, so messages can be of any size.
-- **Failed logins** wait `JPop3.loginFailureDelay` ms. The connection is closed after 3 failures. Unknown users get the same replies as wrong passwords.
+- **Failed logins** wait `parley.mail.pop3.loginFailureDelay` ms. The connection is closed after 3 failures. Unknown users get the same replies as wrong passwords.
 - **Several servers on one store**: set `parley.mail.sharedStore` (`off`, the default, `host` or `cluster`; see parley-mail). The maildrop lock is a lock in the store's lock domain, so it reaches the other servers; at QUIT, messages are deleted only while the session still holds it.
 
 ### Internationalized mail (RFC 6856)
