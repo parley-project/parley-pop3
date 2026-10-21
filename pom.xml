@@ -51,19 +51,6 @@
 			</plugins>
 		</pluginManagement>
 		<plugins>
-			<!-- The test classes (TestPop3Server's keystore helper) as parley-pop3-<version>-tests.jar;
-			     parley-imap's tests use it with <type>test-jar</type><scope>test</scope>. -->
-			<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-jar-plugin</artifactId>
-				<executions>
-					<execution>
-						<goals>
-							<goal>test-jar</goal>
-						</goals>
-					</execution>
-				</executions>
-			</plugin>
 			<!-- Attaches the -sources.jar. The version comes from parley-parent; package (not deploy)
 			     so the source jar is attached BEFORE the deploy plugin runs. -->
 			<plugin>
@@ -103,6 +90,15 @@
 			<groupId>us.bringardner.parley</groupId>
 			<artifactId>parley-net</artifactId>
 			<version>1.1.0-SNAPSHOT</version>
+		</dependency>
+		<!-- Tests only: ServerTestSupport's test keystore (parley-net's tests jar). The mail protocols
+		     never depend on each other; what they share is in parley-mail (or parley-net). -->
+		<dependency>
+			<groupId>us.bringardner.parley</groupId>
+			<artifactId>parley-net</artifactId>
+			<version>1.1.0-SNAPSHOT</version>
+			<type>test-jar</type>
+			<scope>test</scope>
 		</dependency>
 
 		<dependency>

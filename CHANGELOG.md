@@ -14,6 +14,12 @@
   per maildrop, `-ERR [IN-USE]`) reaches every server sharing the store, through parley-net's locks. At QUIT, the
   deleted messages are removed only while the session still holds the lock (`Maildrop.commit(NamedLock)`).
 
+### Changed (no code change needed)
+
+- The test classes are no longer published as a tests jar (`parley-pop3-<version>-tests.jar`): no other module
+  uses them. The tests use parley-net's tests jar for their keystore. That the maildrop is the INBOX of the user's
+  parley-mail store is tested against the store, without an IMAP server.
+
 ## parley-pop3 1.0.0 (2026-10-16)
 
 The POP3 server of BjlEmail (`us.bringardner:bjl_email` 1.0.0-SNAPSHOT, never released) is now
