@@ -5,6 +5,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static us.bringardner.parley.mail.test.MailTestSupport.ACL_FILE;
+import static us.bringardner.parley.mail.test.MailTestSupport.deleteAll;
+import static us.bringardner.parley.mail.test.MailTestSupport.downAcl;
+import static us.bringardner.parley.mail.test.MailTestSupport.scramAcl;
+import static us.bringardner.parley.mail.test.MailTestSupport.scratchFile;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
@@ -56,15 +61,6 @@ public class TestPop3Server {
 
 	private static final String KEYSTORE = scratchFile("pop3keystore.p12");
 
-	/** A file in this run's own folder under the temp directory, so tests don't depend on target/ or the working directory. */
-	private static String scratchFile(String name) {
-		try {
-			return java.nio.file.Files.createTempDirectory("parley-pop3-tests").resolve(name).toString();
-		} catch (java.io.IOException e) {
-			throw new java.io.UncheckedIOException(e);
-		}
-	}
-
 	private static Pop3Server server;
 	private static FileSource root;
 	private static int port;
@@ -75,7 +71,7 @@ public class TestPop3Server {
 		System.setProperty("Pop3Server.KeyStoreName", KEYSTORE);
 		System.setProperty("Pop3Server.KeyStorePassword", ServerTestSupport.KEYSTORE_PASSWORD);
 		System.setProperty("Pop3Server.KeyStoreType", "PKCS12");
-		System.setProperty("Pop3Server." + FileBasedAcl.PROP_FILE_NAME, "Pop3TestAcl.txt");
+		System.setProperty("Pop3Server." + FileBasedAcl.PROP_FILE_NAME, ACL_FILE);
 		System.setProperty("Pop3Server." + IServer.AUTHENTICATION_PROVIDER_PROPERTY, FileBasedAcl.class.getName());
 
 		root = FileSourceFactory.getDefaultFactory().createTempDirectory("pop3test");
@@ -95,15 +91,6 @@ public class TestPop3Server {
 		if (root != null) {
 			deleteAll(root);
 		}
-	}
-
-	private static void deleteAll(FileSource f) throws IOException {
-		if (f.isDirectory()) {
-			for (FileSource kid : f.listFiles()) {
-				deleteAll(kid);
-			}
-		}
-		f.delete();
 	}
 
 	private static FileSource maildrop(String name) throws IOException {
@@ -460,18 +447,6 @@ public class TestPop3Server {
 		return Base64.getEncoder().encodeToString((authzid + "\0" + user + "\0" + password).getBytes(StandardCharsets.UTF_8));
 	}
 
-	/** Users who all have SCRAM credentials, so the server offers SCRAM. */
-	static IAccessControlList scramAcl() {
-		final String carol = FileBasedAcl.hashPasswordWithScram("carolpw".toCharArray());
-		final String nobody = FileBasedAcl.hashPasswordWithScram("pw".toCharArray());
-		return new FileBasedAcl() {
-			{
-				parseLine("carol, " + carol + ", READ|WRITE");
-				parseLine("noread, " + nobody + ", WRITE");
-			}
-		};
-	}
-
 	/** AUTH with SCRAM; returns the final reply. */
 	private static String scram(Client c, ScramMechanism m, String user, String password) throws IOException {
 		ISaslClient client = m.client(user, password);
@@ -535,37 +510,7 @@ public class TestPop3Server {
 	@Test
 	public void testAccessControlUnavailable() throws Exception {
 		IAccessControlList old = server.getAccessControl();
-		server.setAccessControl(new IAccessControlList() {
-				@Override
-				public void initialize(us.bringardner.parley.net.server.IServer s) {
-				}
-
-				@Override
-				public boolean checkPermission(us.bringardner.parley.net.server.IPrincipal user, us.bringardner.parley.net.server.IPermission action) {
-					return false;
-				}
-
-				@Override
-				public us.bringardner.parley.net.server.IPrincipal getPrincipal(String user) {
-					return null;
-				}
-
-				@Override
-				public us.bringardner.parley.net.server.IPrincipal findPrincipal(String user) throws us.bringardner.parley.net.server.AccessControlUnavailableException {
-					throw new us.bringardner.parley.net.server.AccessControlUnavailableException("the database is down");
-				}
-
-				@Override
-				public boolean supportsScram(String hash) {
-					return true;
-				}
-
-				@Override
-				public us.bringardner.parley.net.sasl.ScramCredentials getScramCredentials(String user, String hash)
-						throws us.bringardner.parley.net.server.AccessControlUnavailableException {
-					throw new us.bringardner.parley.net.server.AccessControlUnavailableException("the database is down");
-				}
-			});
+		server.setAccessControl(downAcl());
 		us.bringardner.parley.core.ILogger.Level level = server.getLogger().getLevel();
 		server.getLogger().setLevel(Level.NONE);
 		try (Client c = new Client()) {

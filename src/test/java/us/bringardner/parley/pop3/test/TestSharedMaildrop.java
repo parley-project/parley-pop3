@@ -3,6 +3,7 @@ package us.bringardner.parley.pop3.test;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static us.bringardner.parley.mail.test.MailTestSupport.ACL_FILE;
 
 import java.io.BufferedReader;
 import java.io.Closeable;
@@ -42,7 +43,7 @@ public class TestSharedMaildrop {
 
 	@BeforeAll
 	public static void start() throws Exception {
-		System.setProperty("Pop3Server." + FileBasedAcl.PROP_FILE_NAME, "Pop3TestAcl.txt");
+		System.setProperty("Pop3Server." + FileBasedAcl.PROP_FILE_NAME, ACL_FILE);
 		System.setProperty("Pop3Server." + IServer.AUTHENTICATION_PROVIDER_PROPERTY, FileBasedAcl.class.getName());
 		before = System.getProperty(MailLocks.SHARED_STORE_PROPERTY);
 		System.setProperty(MailLocks.SHARED_STORE_PROPERTY, "cluster");

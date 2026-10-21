@@ -17,7 +17,8 @@
 ### Changed (no code change needed)
 
 - The test classes are no longer published as a tests jar (`parley-pop3-<version>-tests.jar`): no other module
-  uses them. The tests use parley-net's tests jar for their keystore. That the maildrop is the INBOX of the user's
+  uses them. The tests use parley-net's tests jar for their keystore and parley-mail's for the shared test users
+  (`MailTestAcl.txt`, was `Pop3TestAcl.txt` here) and helpers. That the maildrop is the INBOX of the user's
   parley-mail store is tested against the store, without an IMAP server.
 
 ## parley-pop3 1.0.0 (2026-10-16)
