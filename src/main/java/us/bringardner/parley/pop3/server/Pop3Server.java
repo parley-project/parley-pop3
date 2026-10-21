@@ -28,48 +28,55 @@ import us.bringardner.parley.pop3.POP3;
  * {@link FileSource}, holding one file per message (see {@link Maildrop}).
  * <p>
  * Users come from the access control list, configured as for FtpServer with the
- * {@code AuthenticationProvider} property (e.g. FileBasedAcl). A user needs the
+ * {@code parley.mail.pop3.authenticationProvider} property (e.g. FileBasedAcl). A user needs the
  * READ permission to open a maildrop and WRITE to delete messages. The
  * principal parameter {@code maildrop} names the user's maildrop directory
  * (relative to the root); the default is the user name.
  * <p>
- * Each setting can be a system property or set with the matching setter:
+ * Each setting can be a system property or set with the matching setter. A server's own
+ * settings (port, key store, limits, access control) are read with its property prefix:
+ * {@value #POP3_PREFIX}, or {@value #POP3S_PREFIX} for a server with implicit TLS.
  * <table>
  * <caption>Configuration</caption>
- * <tr><td>JPop3.port</td><td>110</td><td>Port (used by main)</td></tr>
- * <tr><td>JPop3.secure</td><td>false</td><td>Implicit TLS (normally on port 995)</td></tr>
- * <tr><td>JPop3.root</td><td>/pop3 (C:/pop3 on Windows)</td><td>Maildrop root</td></tr>
- * <tr><td>JPop3.fileSource</td><td>default factory</td><td>FileSource factory for the root</td></tr>
- * <tr><td>JPop3.autologout</td><td>600000 ms</td><td>Idle sessions are closed (RFC 1939: at least 10 minutes)</td></tr>
- * <tr><td>LoginFailureDelay (or JPop3.loginFailureDelay)</td><td>1000 ms</td><td>Delay before replying to a failed login</td></tr>
- * <tr><td>MaxLoginAttempts</td><td>3</td><td>Failed logins before the connection is closed</td></tr>
- * <tr><td>JPop3.requireTls</td><td>false</td><td>Refuse USER, PASS, APOP and AUTH until STLS (or implicit TLS)</td></tr>
- * <tr><td>JPop3.utf8Downgrade</td><td>surrogate</td><td>For sessions without UTF8: send messages with
+ * <tr><td>parley.mail.pop3.port</td><td>110</td><td>Port (parley.mail.pop3s.port, 995, with implicit TLS)</td></tr>
+ * <tr><td>parley.mail.pop3.secure</td><td>false</td><td>main starts a server with implicit TLS</td></tr>
+ * <tr><td>parley.mail.root</td><td>/pop3 (C:/pop3 on Windows)</td><td>Maildrop root, shared by the mail servers</td></tr>
+ * <tr><td>parley.mail.fileSource</td><td>default factory</td><td>FileSource factory for the root</td></tr>
+ * <tr><td>parley.mail.pop3.autologout</td><td>600000 ms</td><td>Idle sessions are closed (RFC 1939: at least 10 minutes)</td></tr>
+ * <tr><td>parley.mail.pop3.loginFailureDelay</td><td>1000 ms</td><td>Delay before replying to a failed login</td></tr>
+ * <tr><td>parley.mail.pop3.maxLoginAttempts</td><td>3</td><td>Failed logins before the connection is closed</td></tr>
+ * <tr><td>parley.mail.pop3.requireTls</td><td>false</td><td>Refuse USER, PASS, APOP and AUTH until STLS (or implicit TLS)</td></tr>
+ * <tr><td>parley.mail.pop3.utf8Downgrade</td><td>surrogate</td><td>For sessions without UTF8: send messages with
  * UTF-8 headers as RFC 6858 surrogates, or "reject" them with -ERR [UTF8]</td></tr>
  * </table>
+ * The autologout, requireTls and utf8Downgrade settings apply to POP3 with and without implicit TLS.
  * TLS (STLS, or implicit TLS) uses the key store properties of the framework's
- * SecureBaseObject, prefixed with "Pop3Server." (Pop3Server.KeyStoreName,
- * Pop3Server.KeyStorePassword, ...).
+ * SecureBaseObject, with the server's prefix (parley.mail.pop3.keyStoreName,
+ * parley.mail.pop3.keyStorePassword, ...).
  */
 public class Pop3Server extends AbstractMailServer implements POP3 {
 
 
 	public static final String POP3_NAME = "JPop3";
-	public static final String CONFIG_PROP = POP3_NAME + ".properties";
-	public static final String ROOT_PROP = POP3_NAME + ".root";
-	public static final String FILE_SOURCE_PROP = POP3_NAME + ".fileSource";
+	/** The prefix of the properties of a POP3 server (port 110, STLS). */
+	public static final String POP3_PREFIX = "parley.mail.pop3";
+	/** The prefix of the properties of a POP3 server with implicit TLS (port 995). */
+	public static final String POP3S_PREFIX = "parley.mail.pop3s";
+	/** A properties file main loads into the system properties. */
+	public static final String CONFIG_PROP = POP3_PREFIX + ".configFile";
+	public static final String ROOT_PROP = MAIL_ROOT_PROP;
+	public static final String FILE_SOURCE_PROP = MAIL_FILE_SOURCE_PROP;
 	public static final String DEFAULT_ROOT_WINDOWS = "C:/pop3";
 	public static final String DEFAULT_ROOT = "/pop3";
 
 	/** RFC 1939 section 3: the autologout timer must be at least 10 minutes. */
 	public static final int DEFAULT_AUTOLOGOUT = 10 * 60 * 1000;
-	public static final String AUTOLOGOUT_PROP = POP3_NAME + ".autologout";
+	public static final String AUTOLOGOUT_PROP = POP3_PREFIX + ".autologout";
 
 	/** Delay (ms) before replying to a failed login, to slow down password guessing. */
 	public static final int DEFAULT_LOGIN_FAILURE_DELAY = 1000;
-	public static final String LOGIN_FAILURE_DELAY_PROP = POP3_NAME + ".loginFailureDelay";
 
-	public static final String REQUIRE_TLS_PROP = POP3_NAME + ".requireTls";
+	public static final String REQUIRE_TLS_PROP = POP3_PREFIX + ".requireTls";
 
 	/**
 	 * What a session that didn't send UTF8 (RFC 6856) gets for a message with
@@ -86,7 +93,7 @@ public class Pop3Server extends AbstractMailServer implements POP3 {
 		}
 	}
 
-	public static final String UTF8_DOWNGRADE_PROP = POP3_NAME + ".utf8Downgrade";
+	public static final String UTF8_DOWNGRADE_PROP = POP3_PREFIX + ".utf8Downgrade";
 
 	private volatile Utf8Downgrade utf8Downgrade = Utf8Downgrade.parse(System.getProperty(UTF8_DOWNGRADE_PROP, "surrogate"));
 
@@ -95,7 +102,7 @@ public class Pop3Server extends AbstractMailServer implements POP3 {
 	private final ConcurrentHashMap<String, Pop3RequestProcessor> locks = new ConcurrentHashMap<>();
 
 	public Pop3Server(int port, String name, boolean secure) {
-		super(port, name, "Pop3Server", secure);
+		super(port, name, secure ? POP3S_PREFIX : POP3_PREFIX, secure);
 		initMe();
 		finishInit();
 	}
@@ -129,8 +136,8 @@ public class Pop3Server extends AbstractMailServer implements POP3 {
 
 	public static void main(String[] args) throws Exception {
 		ServerMain.configure("Pop3Server", args, CONFIG_PROP);
-		boolean secure = Boolean.parseBoolean(System.getProperty(POP3_NAME + ".secure", "false"));
-		int port = Integer.getInteger(POP3_NAME + ".port", secure ? POP3S_PORT : POP3_PORT);
+		boolean secure = Boolean.parseBoolean(System.getProperty(POP3_PREFIX + ".secure", "false"));
+		int port = secure ? Integer.getInteger(POP3S_PREFIX + ".port", POP3S_PORT) : Integer.getInteger(POP3_PREFIX + ".port", POP3_PORT);
 		Pop3Server server = new Pop3Server(port, POP3_NAME, secure);
 		server.start();
 		System.out.println("Pop3Server started on port " + port);
@@ -151,7 +158,7 @@ public class Pop3Server extends AbstractMailServer implements POP3 {
 		setRequireTls(Boolean.getBoolean(REQUIRE_TLS_PROP));
 		initMaildropRoot(FILE_SOURCE_PROP, null, ROOT_PROP, null, DEFAULT_ROOT, DEFAULT_ROOT_WINDOWS);
 
-		// trigger access control initialization (AuthenticationProvider property)
+		// trigger access control initialization (authenticationProvider property)
 		warnIfNoAccessControl();
 	}
 
@@ -201,14 +208,6 @@ public class Pop3Server extends AbstractMailServer implements POP3 {
 
 	// ------------------------------------------------------------------ settings
 
-	/**
-	 * The shared LoginFailureDelay setting (see AbstractCoreServer) defaults to the older
-	 * {@value #LOGIN_FAILURE_DELAY_PROP} system property, else {@value #DEFAULT_LOGIN_FAILURE_DELAY} ms.
-	 */
-	@Override
-	protected int getDefaultLoginFailureDelay() {
-		return Integer.getInteger(LOGIN_FAILURE_DELAY_PROP, DEFAULT_LOGIN_FAILURE_DELAY);
-	}
 
 	public Utf8Downgrade getUtf8Downgrade() {
 		return utf8Downgrade;

@@ -81,7 +81,7 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 		super();
 		setCommandFactory(new Pop3CommandFactory());
 		setName("Pop3RequestProcessor");
-		setPropertyPrefix("Pop3RequestProcessor");
+		setPropertyPrefix("parley.mail.pop3.session");
 		timestamp = "<" + ProcessHandle.current().pid() + "." + System.currentTimeMillis() + "."
 				+ Long.toHexString(RANDOM.nextLong() & Long.MAX_VALUE) + "@" + hostName() + ">";
 	}

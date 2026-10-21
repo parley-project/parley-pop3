@@ -43,8 +43,8 @@ public class TestSharedMaildrop {
 
 	@BeforeAll
 	public static void start() throws Exception {
-		System.setProperty("Pop3Server." + FileBasedAcl.PROP_FILE_NAME, ACL_FILE);
-		System.setProperty("Pop3Server." + IServer.AUTHENTICATION_PROVIDER_PROPERTY, FileBasedAcl.class.getName());
+		System.setProperty("parley.mail.pop3." + FileBasedAcl.PROP_FILE_NAME, ACL_FILE);
+		System.setProperty("parley.mail.pop3." + IServer.AUTHENTICATION_PROVIDER_PROPERTY, FileBasedAcl.class.getName());
 		before = System.getProperty(MailLocks.SHARED_STORE_PROPERTY);
 		System.setProperty(MailLocks.SHARED_STORE_PROPERTY, "cluster");
 		root = FileSourceFactory.getDefaultFactory().createTempDirectory("pop3shared");
