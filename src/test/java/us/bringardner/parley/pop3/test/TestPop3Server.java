@@ -15,15 +15,11 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.security.KeyStore;
 import java.security.MessageDigest;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -44,6 +40,7 @@ import us.bringardner.parley.mail.Message;
 import us.bringardner.parley.net.sasl.ISaslClient;
 import us.bringardner.parley.net.sasl.SaslException;
 import us.bringardner.parley.net.sasl.ScramMechanism;
+import us.bringardner.parley.net.ServerTestSupport;
 import us.bringardner.parley.net.server.FileBasedAcl;
 import us.bringardner.parley.net.server.IAccessControlList;
 import us.bringardner.parley.net.server.IServer;
@@ -67,8 +64,6 @@ public class TestPop3Server {
 			throw new java.io.UncheckedIOException(e);
 		}
 	}
-	public static final String KEYSTORE_PASSWORD = "peekab00";
-	private static final String KEY_ALIAS = "serverkey";
 
 	private static Pop3Server server;
 	private static FileSource root;
@@ -76,9 +71,9 @@ public class TestPop3Server {
 
 	@BeforeAll
 	public static void startServer() throws Exception {
-		makeTestKeystore(new File(KEYSTORE));
+		ServerTestSupport.writeKeystore(new File(KEYSTORE));
 		System.setProperty("Pop3Server.KeyStoreName", KEYSTORE);
-		System.setProperty("Pop3Server.KeyStorePassword", KEYSTORE_PASSWORD);
+		System.setProperty("Pop3Server.KeyStorePassword", ServerTestSupport.KEYSTORE_PASSWORD);
 		System.setProperty("Pop3Server.KeyStoreType", "PKCS12");
 		System.setProperty("Pop3Server." + FileBasedAcl.PROP_FILE_NAME, "Pop3TestAcl.txt");
 		System.setProperty("Pop3Server." + IServer.AUTHENTICATION_PROVIDER_PROPERTY, FileBasedAcl.class.getName());
@@ -591,6 +586,50 @@ public class TestPop3Server {
 		}
 	}
 
+	/**
+	 * The maildrop is the INBOX of the user's parley-mail store (MailStore), which an IMAP server
+	 * works on: POP3 sees INBOX's messages only, not the store's own files or other mailboxes, and a
+	 * message POP3 deletes is gone from INBOX. Tested against the store, without an IMAP server;
+	 * parley-imap tests its side.
+	 */
+	@Test
+	public void testMaildropIsTheStoresInbox() throws Exception {
+		FileSource dir = maildrop("team");
+		us.bringardner.parley.mail.store.MailboxRegistry registry = us.bringardner.parley.mail.store.MailboxRegistry.get();
+		us.bringardner.parley.mail.store.MailStore store = new us.bringardner.parley.mail.store.MailStore(dir, registry);
+		store.init(true);
+		store.create("Folder", null);
+		String msg = "From: a@example.com\r\nSubject: shared\r\n\r\nHello\r\n";
+		for (String name : new String[] {"INBOX", "Folder"}) {
+			us.bringardner.parley.mail.store.Mailbox m = store.open(name);
+			try {
+				m.append(new java.io.ByteArrayInputStream(msg.getBytes(StandardCharsets.UTF_8)), java.util.Set.of(), System.currentTimeMillis());
+			} finally {
+				registry.release(m);
+			}
+		}
+		try (Client c = new Client()) {
+			c.cmd("USER team1");
+			assertTrue(c.cmd("PASS secret").startsWith("+OK"));
+			assertEquals("+OK 1 " + msg.length(), c.cmd("STAT"), "INBOX's message only");
+			assertTrue(c.cmd("DELE 1").startsWith("+OK"));
+			assertTrue(c.cmd("QUIT").startsWith("+OK"));
+		}
+		us.bringardner.parley.mail.store.Mailbox inbox = store.open("INBOX");
+		try {
+			inbox.refresh(true);
+			assertEquals(0, inbox.count(), "deleted by POP3: gone from INBOX");
+		} finally {
+			registry.release(inbox);
+		}
+		us.bringardner.parley.mail.store.Mailbox folder = store.open("Folder");
+		try {
+			assertEquals(1, folder.count(), "other mailboxes are left alone");
+		} finally {
+			registry.release(folder);
+		}
+	}
+
 	@Test
 	public void testAuthPlain() throws Exception {
 		maildrop("tony");
@@ -868,35 +907,6 @@ public class TestPop3Server {
 
 	// ------------------------------------------------------------------ key store
 
-	/** A self-signed key store for TLS, made with keytool (as TestFtpBaseTestClass does). */
-	public static synchronized void makeTestKeystore(File file) throws Exception {
-		if (file.isFile()) {
-			try (InputStream in = new java.io.FileInputStream(file)) {
-				KeyStore ks = KeyStore.getInstance("PKCS12");
-				ks.load(in, KEYSTORE_PASSWORD.toCharArray());
-				if (ks.isKeyEntry(KEY_ALIAS)) {
-					return;
-				}
-			} catch (Exception e) {
-				// make a new one
-			}
-		}
-		Files.deleteIfExists(file.toPath());
-		File dir = file.getAbsoluteFile().getParentFile();
-		if (dir != null) {
-			dir.mkdirs();
-		}
-		boolean windows = System.getProperty("os.name").toLowerCase().contains("windows");
-		String keytool = Paths.get(System.getProperty("java.home"), "bin", windows ? "keytool.exe" : "keytool").toString();
-		Process p = new ProcessBuilder(keytool, "-genkeypair", "-noprompt", "-alias", KEY_ALIAS,
-				"-dname", "CN=localhost, OU=Test, O=Bringardner, C=US", "-keystore", file.getPath(),
-				"-storetype", "PKCS12", "-storepass", KEYSTORE_PASSWORD, "-keypass", KEYSTORE_PASSWORD,
-				"-keyalg", "RSA", "-keysize", "2048", "-validity", "3650")
-				.redirectErrorStream(true).start();
-		String output = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-		assertTrue(p.waitFor(60, TimeUnit.SECONDS), "keytool didn't finish");
-		assertEquals(0, p.exitValue(), "keytool failed: " + output);
-	}
 
 	/** The shared MaxLoginAttempts setting */
 	@Test
