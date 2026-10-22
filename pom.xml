@@ -13,7 +13,6 @@
 	</parent>
 
 	<artifactId>parley-pop3</artifactId>
-	<version>2.0.0-SNAPSHOT</version>
 	<name>Parley POP3</name>
 	<description>A POP3 server (RFC 1939, with CAPA, STLS, AUTH PLAIN and UTF8), built on parley-net and
 		serving the parley-mail store. Split out of us.bringardner:bjl_email.</description>
@@ -83,19 +82,19 @@
 		<dependency>
 			<groupId>us.bringardner.parley</groupId>
 			<artifactId>parley-mail</artifactId>
-			<version>2.0.0-SNAPSHOT</version>
+			<version>${project.version}</version>
 		</dependency>
 		<!-- Server, sessions, TLS, authentication -->
 		<dependency>
 			<groupId>us.bringardner.parley</groupId>
 			<artifactId>parley-net</artifactId>
-			<version>2.0.0-SNAPSHOT</version>
+			<version>${project.version}</version>
 		</dependency>
 		<!-- Tests only: what the mail protocols' tests share (MailTestSupport, MailTestAcl.txt), in parley-mail's tests jar -->
 		<dependency>
 			<groupId>us.bringardner.parley</groupId>
 			<artifactId>parley-mail</artifactId>
-			<version>2.0.0-SNAPSHOT</version>
+			<version>${project.version}</version>
 			<type>test-jar</type>
 			<scope>test</scope>
 		</dependency>
@@ -104,7 +103,7 @@
 		<dependency>
 			<groupId>us.bringardner.parley</groupId>
 			<artifactId>parley-net</artifactId>
-			<version>2.0.0-SNAPSHOT</version>
+			<version>${project.version}</version>
 			<type>test-jar</type>
 			<scope>test</scope>
 		</dependency>
