@@ -2,6 +2,14 @@
 
 ## parley-pop3 2.0.0 (unreleased)
 
+### Added
+
+- **`Pop3Providers`**: parley-net `ServerProvider`s `pop3` and `pop3s` (implicit TLS), so POP3 runs alone or with other
+  servers in one process (parley-net's `ServerMain`), and is managed with JMX. `Pop3Server.main` runs them with
+  `ServerMain.launch`: settings from `parley-mail.properties`, then `parley-pop3.properties`; `pop3s` runs when
+  `parley.mail.pop3s.port` is set. Users and the TLS key store can come from the suite's `parley.mail.users` and
+  `parley.mail.tls.*` (parley-mail).
+
 ### Changed
 
 - **`Pop3Server.main` runs the server as a service** with parley-net's `ServerMain.run`: settings from the command
