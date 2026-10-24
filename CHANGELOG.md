@@ -2,6 +2,12 @@
 
 ## parley-pop3 2.0.0 (unreleased)
 
+### Changed
+
+- **`Pop3Server.main` runs the server as a service** with parley-net's `ServerMain.run`: settings from the command
+  line (which wins) and `parley-pop3.properties` in Parley's administrator folder (`/etc/parley`, or the file the server's
+  `configFile` property names); it stops on SIGTERM; a failed start now exits with 1 (it printed "started" and exited 0).
+
 ### Changed (needs a configuration change)
 
 - **Property names** (Parley 2.0.0; the old names are no longer read): `JPop3.*` is `parley.mail.pop3.*`

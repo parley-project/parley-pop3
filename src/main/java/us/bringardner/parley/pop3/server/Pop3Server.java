@@ -135,12 +135,11 @@ public class Pop3Server extends AbstractMailServer implements POP3 {
 	}
 
 	public static void main(String[] args) throws Exception {
-		ServerMain.configure("Pop3Server", args, CONFIG_PROP);
-		boolean secure = Boolean.parseBoolean(System.getProperty(POP3_PREFIX + ".secure", "false"));
-		int port = secure ? Integer.getInteger(POP3S_PREFIX + ".port", POP3S_PORT) : Integer.getInteger(POP3_PREFIX + ".port", POP3_PORT);
-		Pop3Server server = new Pop3Server(port, POP3_NAME, secure);
-		server.start();
-		System.out.println("Pop3Server started on port " + port);
+		ServerMain.run("Pop3Server", args, CONFIG_PROP, "parley-pop3.properties", () -> {
+			boolean secure = Boolean.parseBoolean(System.getProperty(POP3_PREFIX + ".secure", "false"));
+			int port = secure ? Integer.getInteger(POP3S_PREFIX + ".port", POP3S_PORT) : Integer.getInteger(POP3_PREFIX + ".port", POP3_PORT);
+			return java.util.Collections.singletonList(ServerMain.service(new Pop3Server(port, POP3_NAME, secure), "Pop3Server"));
+		});
 	}
 
 	private void initMe() {
