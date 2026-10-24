@@ -55,6 +55,12 @@ POP3 never writes messages. Mail is delivered by SMTP, or by your code through t
 
 Or from the command line: `java us.bringardner.parley.pop3.server.Pop3Server -Dparley.mail.pop3.port=1110 -Dparley.mail.root=/var/mail/pop3`
 
+`Pop3Server.main` runs `pop3` and, when `parley.mail.pop3s.port` is set, `pop3s` (with implicit TLS), with
+parley-net's `ServerMain.launch`: settings from `parley-mail.properties` then `parley-pop3.properties` in
+the settings folder, the JVM's `-D` options and the command line; a JMX bean per server. To run POP3
+with other servers in one process, use the providers `pop3` and `pop3s` (`Pop3Providers`) with
+parley-net's launcher; see parley-mail's README.
+
 ### Users and maildrops
 
 - **Users** come from the access control list, set up as for FtpServer with the `parley.mail.pop3.authenticationProvider` property (for example `us.bringardner.parley.net.server.FileBasedAcl` with `parley.mail.pop3.userFile`). See `MailTestAcl.txt` in parley-mail's test resources (the user file every mail protocol's tests share).
@@ -70,7 +76,8 @@ Each setting can be passed as a system property or set with the matching `Pop3Se
 | Property | Default | Meaning |
 |---|---|---|
 | `parley.mail.pop3.port` | 110 | Port (used by `Pop3Server.main`) |
-| `parley.mail.pop3.secure` | false | `main` starts a server with implicit TLS, on `parley.mail.pop3s.port` (995) |
+| `parley.mail.pop3s.port` | off | Port of POP3 with implicit TLS (`pop3s`); set it (995) to turn it on |
+| `parley.mail.pop3.secure` | false | The older way: `main` runs only POP3 with implicit TLS, on `parley.mail.pop3s.port` (995) |
 | `parley.mail.root` | `/pop3` (`C:/pop3` on Windows) | Maildrop root |
 | `parley.mail.fileSource` | default factory | FileSource factory for the root |
 | `parley.mail.pop3.autologout` | 600000 ms | Idle sessions are closed. RFC 1939 requires at least 10 minutes. `setAutologout()` |
