@@ -20,6 +20,12 @@
 - `JPop3.loginFailureDelay` is now the server's `loginFailureDelay` (`parley.mail.pop3.loginFailureDelay`):
   `LOGIN_FAILURE_DELAY_PROP` is gone.
 
+### Fixed
+
+- Opening a maildrop (at login) no longer reads every message to learn its size: the size comes
+  from the store (which keeps CRLF line ends), and only each message's last byte is read, to add
+  the CRLF RETR sends after a last line without one.
+
 ## parley-pop3 1.1.0 (unreleased)
 
 ### Added

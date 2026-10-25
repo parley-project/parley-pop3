@@ -142,8 +142,8 @@ public class Maildrop implements java.io.Closeable {
 			List<Entry> entries = new ArrayList<>(messages.size());
 			for (MessageInfo m : messages) {
 				boolean surrogate = !utf8Mode && m.isUtf8();
-				FileSource sent = surrogate ? inbox.surrogate(m) : m.getFile();
-				entries.add(new Entry(m, m.getFile(), count(sent).getCount(), uidFor(m.getName()), surrogate));
+				long size = surrogate ? count(inbox.surrogate(m)).getCount() : sentSize(m);
+				entries.add(new Entry(m, m.getFile(), size, uidFor(m.getName()), surrogate));
 			}
 			return new Maildrop(directory, store, inbox, entries);
 		} catch (IOException | RuntimeException e) {
@@ -390,6 +390,30 @@ public class Maildrop implements java.io.Closeable {
 	}
 
 	/** Count a stored message as RETR sends it. */
+	/**
+	 * The size RETR sends for a stored message, without reading all of it: the store keeps files
+	 * with CRLF line ends, so it is the stored size, plus the CRLF that RETR adds after a last line
+	 * without one. Only the last byte is read; a file that isn't the size the store says is
+	 * measured in full.
+	 */
+	static long sentSize(MessageInfo m) throws IOException {
+		long size = m.getSize();
+		FileSource f = m.getFile();
+		if (size <= 0) {
+			return count(f).getCount();
+		}
+		int last;
+		int after;
+		try (InputStream in = f.getInputStream(size - 1)) {
+			last = in.read();
+			after = last < 0 ? -1 : in.read();
+		}
+		if (last < 0 || after >= 0) {
+			return count(f).getCount();
+		}
+		return last == '\n' ? size : size + 2;
+	}
+
 	static DotStuffingOutputStream.Counter count(FileSource f) throws IOException {
 		DotStuffingOutputStream.Counter c = new DotStuffingOutputStream.Counter();
 		try (InputStream in = IoUtils.buffered(f.getInputStream())) {
