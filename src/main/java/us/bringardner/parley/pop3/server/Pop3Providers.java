@@ -1,5 +1,6 @@
 package us.bringardner.parley.pop3.server;
 
+import us.bringardner.parley.mail.server.AbstractMailServer;
 import us.bringardner.parley.mail.server.MailServerProvider;
 import us.bringardner.parley.pop3.POP3;
 import us.bringardner.parley.net.server.ServerContext;
@@ -34,8 +35,8 @@ public final class Pop3Providers {
 		}
 
 		@Override
-		public ServerMain.Service create(ServerContext context) {
-			return ServerMain.service(new Pop3Server(port(), Pop3Server.POP3_NAME, false), "POP3 server");
+		public ServerMain.Service create(ServerContext context) throws Exception {
+			return ServerMain.service(AbstractMailServer.makeIn(context, () -> new Pop3Server(port(), Pop3Server.POP3_NAME, false)), "POP3 server");
 		}
 	}
 
@@ -51,8 +52,8 @@ public final class Pop3Providers {
 		}
 
 		@Override
-		public ServerMain.Service create(ServerContext context) {
-			return ServerMain.service(new Pop3Server(port(), Pop3Server.POP3_NAME, true), "POP3 server (implicit TLS)");
+		public ServerMain.Service create(ServerContext context) throws Exception {
+			return ServerMain.service(AbstractMailServer.makeIn(context, () -> new Pop3Server(port(), Pop3Server.POP3_NAME, true)), "POP3 server (implicit TLS)");
 		}
 	}
 }
