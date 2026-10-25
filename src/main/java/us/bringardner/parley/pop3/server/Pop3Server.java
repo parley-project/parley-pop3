@@ -134,12 +134,12 @@ public class Pop3Server extends AbstractMailServer implements POP3 {
 		}
 	}
 
+	/**
+	 * Run POP3 (and POP3 with implicit TLS when parley.mail.pop3s.port is set) until the process is
+	 * stopped; see parley-net's ServerMain.launch.
+	 */
 	public static void main(String[] args) throws Exception {
-		ServerMain.run("Pop3Server", args, CONFIG_PROP, "parley-pop3.properties", () -> {
-			boolean secure = Boolean.parseBoolean(System.getProperty(POP3_PREFIX + ".secure", "false"));
-			int port = secure ? Integer.getInteger(POP3S_PREFIX + ".port", POP3S_PORT) : Integer.getInteger(POP3_PREFIX + ".port", POP3_PORT);
-			return java.util.Collections.singletonList(ServerMain.service(new Pop3Server(port, POP3_NAME, secure), "Pop3Server"));
-		});
+		ServerMain.launch("Pop3Server", args, "pop3", "pop3s");
 	}
 
 	private void initMe() {
