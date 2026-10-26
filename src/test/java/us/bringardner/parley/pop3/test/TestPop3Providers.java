@@ -83,6 +83,9 @@ public class TestPop3Providers {
 	public void runsWithTheSuiteSettings() throws Exception {
 		int port = freePort();
 		File mail = new File(dir, "mail");
+		us.bringardner.parley.mail.store.MailLocks.writeStoreSettings(
+				us.bringardner.parley.files.FileSourceFactory.getDefaultFactory().createFileSource(mail.getPath()),
+				us.bringardner.parley.net.lock.Sharing.OFF); // made by an administrator
 		write("users.txt", "tony , secret , READ|WRITE");
 		write("parley-mail.properties", "parley.mail.root=" + mail.getPath(), "parley.mail.users=" + new File(dir, "users.txt").getPath(),
 				"parley.mail.pop3.port=1");
@@ -110,10 +113,13 @@ public class TestPop3Providers {
 
 	@Test
 	public void legacySecureTurnsOnPop3sOnly() throws Exception {
-		System.setProperty("parley.mail.pop3.secure", "true");
+		Properties c = new Properties();
+		c.setProperty("parley.mail.pop3.secure", "true");
 		us.bringardner.parley.net.server.ServerProvider pop3 = ServerLauncher.providers().get("pop3");
 		us.bringardner.parley.net.server.ServerProvider pop3s = ServerLauncher.providers().get("pop3s");
-		assertTrue(!pop3.enabled());
-		assertTrue(pop3s.enabled());
+		assertTrue(!pop3.enabled(c));
+		assertTrue(pop3s.enabled(c));
+		assertTrue(pop3.enabled(new Properties()));
+		assertTrue(!pop3s.enabled(new Properties()));
 	}
 }

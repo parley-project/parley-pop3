@@ -76,6 +76,7 @@ public class TestPop3Server {
 		System.setProperty("parley.mail.pop3." + IServer.AUTHENTICATION_PROVIDER_PROPERTY, FileBasedAcl.class.getName());
 
 		root = FileSourceFactory.getDefaultFactory().createTempDirectory("pop3test");
+		us.bringardner.parley.mail.store.MailLocks.writeStoreSettings(root, us.bringardner.parley.net.lock.Sharing.OFF);
 		server = new Pop3Server(0, Pop3Server.POP3_NAME, false);
 		server.setMaildropRoot(root);
 		server.setLoginFailureDelay(0);
