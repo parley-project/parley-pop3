@@ -2,6 +2,12 @@
 
 ## parley-pop3 2.0.0 (unreleased)
 
+### Changed (2026-10-26: each server alone, shared assets carry their own settings)
+
+- **Each POP3 server reads its own settings under its own prefix**: `autologout`, `requireTls` and `utf8Downgrade`
+  are `parley.mail.pop3s.*` for POP3S (they used to be read as `parley.mail.pop3.*` for both). The providers make
+  each server from its own configuration.
+
 ### Added
 
 - **`Pop3Providers`**: parley-net `ServerProvider`s `pop3` and `pop3s` (implicit TLS), so POP3 runs alone or with other
