@@ -71,14 +71,14 @@ parley-net's launcher; see parley-mail's README.
 
 ### Configuration
 
-Each setting can be passed as a system property or set with the matching `Pop3Server` setter.
+A server reads its settings from its own configuration (made by parley-net's launcher, or the system properties for a server made by code), or they are set with the matching `Pop3Server` setter. Its own settings use its prefix, `parley.mail.pop3` or, with implicit TLS, `parley.mail.pop3s` (`parley.mail.pop3s.autologout`, say), with no fallback from one to the other.
 
 | Property | Default | Meaning |
 |---|---|---|
 | `parley.mail.pop3.port` | 110 | Port (used by `Pop3Server.main`) |
 | `parley.mail.pop3s.port` | off | Port of POP3 with implicit TLS (`pop3s`); set it (995) to turn it on |
 | `parley.mail.pop3.secure` | false | The older way: `main` runs only POP3 with implicit TLS, on `parley.mail.pop3s.port` (995) |
-| `parley.mail.root` | `/pop3` (`C:/pop3` on Windows) | Maildrop root |
+| `parley.mail.root` | (required) | Maildrop root; the store has its own settings (see parley-mail) |
 | `parley.mail.fileSource` | default factory | FileSource factory for the root |
 | `parley.mail.pop3.autologout` | 600000 ms | Idle sessions are closed. RFC 1939 requires at least 10 minutes. `setAutologout()` |
 | `parley.mail.pop3.loginFailureDelay` | 1000 ms | Delay before replying to a failed login. `setLoginFailureDelay()` |
@@ -96,7 +96,7 @@ Each setting can be passed as a system property or set with the matching `Pop3Se
 - **Sizes** in STAT and LIST are exact: the octets RETR sends, with CRLF line ends, before byte-stuffing. They are computed when the maildrop is opened.
 - **Streaming:** RETR and TOP stream from the maildrop, so messages can be of any size.
 - **Failed logins** wait `parley.mail.pop3.loginFailureDelay` ms. The connection is closed after 3 failures. Unknown users get the same replies as wrong passwords.
-- **Several servers on one store**: set `parley.mail.sharedStore` (`off`, the default, `host` or `cluster`; see parley-mail). The maildrop lock is a lock in the store's lock domain, so it reaches the other servers; at QUIT, messages are deleted only while the session still holds it.
+- **Several servers on one store**: give them a store whose settings say `sharing=host` or `cluster` (see parley-mail). The maildrop lock is a lock in the store's lock domain, so it reaches the other servers; at QUIT, messages are deleted only while the session still holds it.
 
 ### Internationalized mail (RFC 6856)
 
