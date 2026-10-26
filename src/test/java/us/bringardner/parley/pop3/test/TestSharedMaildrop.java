@@ -39,15 +39,13 @@ public class TestSharedMaildrop {
 	private static FileSource root;
 	private static Locks other;
 	private static LockDomain otherDomain;
-	private static String before;
 
 	@BeforeAll
 	public static void start() throws Exception {
 		System.setProperty("parley.mail.pop3." + FileBasedAcl.PROP_FILE_NAME, ACL_FILE);
 		System.setProperty("parley.mail.pop3." + IServer.AUTHENTICATION_PROVIDER_PROPERTY, FileBasedAcl.class.getName());
-		before = System.getProperty(MailLocks.SHARED_STORE_PROPERTY);
-		System.setProperty(MailLocks.SHARED_STORE_PROPERTY, "cluster");
 		root = FileSourceFactory.getDefaultFactory().createTempDirectory("pop3shared");
+		MailLocks.writeStoreSettings(root, Sharing.CLUSTER); // the store's own settings
 		server = new Pop3Server(0, Pop3Server.POP3_NAME, false);
 		server.setMaildropRoot(root);
 		server.setLoginFailureDelay(0);
@@ -65,11 +63,6 @@ public class TestSharedMaildrop {
 		}
 		if (other != null) {
 			other.close();
-		}
-		if (before == null) {
-			System.clearProperty(MailLocks.SHARED_STORE_PROPERTY);
-		} else {
-			System.setProperty(MailLocks.SHARED_STORE_PROPERTY, before);
 		}
 	}
 

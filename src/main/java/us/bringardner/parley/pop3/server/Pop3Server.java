@@ -33,14 +33,16 @@ import us.bringardner.parley.pop3.POP3;
  * principal parameter {@code maildrop} names the user's maildrop directory
  * (relative to the root); the default is the user name.
  * <p>
- * Each setting can be a system property or set with the matching setter. A server's own
- * settings (port, key store, limits, access control) are read with its property prefix:
- * {@value #POP3_PREFIX}, or {@value #POP3S_PREFIX} for a server with implicit TLS.
+ * A server reads its settings from its own configuration (the system properties for a server made
+ * by code, see parley-core's {@code BaseObject.setConfiguration}), or they are set with the matching
+ * setter. A server's own settings (port, key store, limits, access control, autologout, requireTls,
+ * utf8Downgrade) are read with its property prefix: {@value #POP3_PREFIX}, or {@value #POP3S_PREFIX}
+ * for a server with implicit TLS (parley.mail.pop3s.autologout, say).
  * <table>
  * <caption>Configuration</caption>
  * <tr><td>parley.mail.pop3.port</td><td>110</td><td>Port (parley.mail.pop3s.port, 995, with implicit TLS)</td></tr>
  * <tr><td>parley.mail.pop3.secure</td><td>false</td><td>main starts a server with implicit TLS</td></tr>
- * <tr><td>parley.mail.root</td><td>/pop3 (C:/pop3 on Windows)</td><td>Maildrop root, shared by the mail servers</td></tr>
+ * <tr><td>parley.mail.root</td><td>(required)</td><td>Maildrop root; the store carries its own settings (parley-mail's MailLocks)</td></tr>
  * <tr><td>parley.mail.fileSource</td><td>default factory</td><td>FileSource factory for the root</td></tr>
  * <tr><td>parley.mail.pop3.autologout</td><td>600000 ms</td><td>Idle sessions are closed (RFC 1939: at least 10 minutes)</td></tr>
  * <tr><td>parley.mail.pop3.loginFailureDelay</td><td>1000 ms</td><td>Delay before replying to a failed login</td></tr>
@@ -49,7 +51,6 @@ import us.bringardner.parley.pop3.POP3;
  * <tr><td>parley.mail.pop3.utf8Downgrade</td><td>surrogate</td><td>For sessions without UTF8: send messages with
  * UTF-8 headers as RFC 6858 surrogates, or "reject" them with -ERR [UTF8]</td></tr>
  * </table>
- * The autologout, requireTls and utf8Downgrade settings apply to POP3 with and without implicit TLS.
  * TLS (STLS, or implicit TLS) uses the key store properties of the framework's
  * SecureBaseObject, with the server's prefix (parley.mail.pop3.keyStoreName,
  * parley.mail.pop3.keyStorePassword, ...).
@@ -71,12 +72,18 @@ public class Pop3Server extends AbstractMailServer implements POP3 {
 
 	/** RFC 1939 section 3: the autologout timer must be at least 10 minutes. */
 	public static final int DEFAULT_AUTOLOGOUT = 10 * 60 * 1000;
-	public static final String AUTOLOGOUT_PROP = POP3_PREFIX + ".autologout";
+	/** A server's idle time setting, after its prefix ({@value #POP3_PREFIX} or {@value #POP3S_PREFIX}) */
+	public static final String AUTOLOGOUT = "autologout";
+	/** The POP3 (port 110) server's {@link #AUTOLOGOUT} */
+	public static final String AUTOLOGOUT_PROP = POP3_PREFIX + "." + AUTOLOGOUT;
 
 	/** Delay (ms) before replying to a failed login, to slow down password guessing. */
 	public static final int DEFAULT_LOGIN_FAILURE_DELAY = 1000;
 
-	public static final String REQUIRE_TLS_PROP = POP3_PREFIX + ".requireTls";
+	/** A server's require-TLS setting, after its prefix */
+	public static final String REQUIRE_TLS = "requireTls";
+	/** The POP3 (port 110) server's {@link #REQUIRE_TLS} */
+	public static final String REQUIRE_TLS_PROP = POP3_PREFIX + "." + REQUIRE_TLS;
 
 	/**
 	 * What a session that didn't send UTF8 (RFC 6856) gets for a message with
@@ -93,9 +100,12 @@ public class Pop3Server extends AbstractMailServer implements POP3 {
 		}
 	}
 
-	public static final String UTF8_DOWNGRADE_PROP = POP3_PREFIX + ".utf8Downgrade";
+	/** A server's UTF-8 downgrade setting, after its prefix */
+	public static final String UTF8_DOWNGRADE = "utf8Downgrade";
+	/** The POP3 (port 110) server's {@link #UTF8_DOWNGRADE} */
+	public static final String UTF8_DOWNGRADE_PROP = POP3_PREFIX + "." + UTF8_DOWNGRADE;
 
-	private volatile Utf8Downgrade utf8Downgrade = Utf8Downgrade.parse(System.getProperty(UTF8_DOWNGRADE_PROP, "surrogate"));
+	private volatile Utf8Downgrade utf8Downgrade = Utf8Downgrade.parse(getProperty(propertyName(UTF8_DOWNGRADE), "surrogate"));
 
 
 	/** Maildrops in use, by canonical path (RFC 1939: one session per maildrop). */
@@ -152,9 +162,9 @@ public class Pop3Server extends AbstractMailServer implements POP3 {
 				return ret;
 			}
 		});
-		initAutologout(AUTOLOGOUT_PROP, DEFAULT_AUTOLOGOUT);
+		initAutologout(propertyName(AUTOLOGOUT), DEFAULT_AUTOLOGOUT);
 		setMaxIdleConnection(getAutologout());
-		setRequireTls(Boolean.getBoolean(REQUIRE_TLS_PROP));
+		setRequireTls(getBooleanProperty(propertyName(REQUIRE_TLS), false));
 		initMaildropRoot(FILE_SOURCE_PROP, null, ROOT_PROP, null, DEFAULT_ROOT, DEFAULT_ROOT_WINDOWS);
 
 		// trigger access control initialization (authenticationProvider property)
