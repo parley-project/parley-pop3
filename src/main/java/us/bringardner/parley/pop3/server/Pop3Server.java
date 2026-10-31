@@ -6,12 +6,9 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.concurrent.ConcurrentHashMap;
 
-
 import us.bringardner.parley.files.FileSource;
-import us.bringardner.parley.mail.Message;
 import us.bringardner.parley.net.IProcessor;
 import us.bringardner.parley.net.IProcessorFactory;
-import us.bringardner.parley.net.server.IAccessControlList;
 import us.bringardner.parley.net.server.IPrincipal;
 import us.bringardner.parley.pop3.POP3;
 
