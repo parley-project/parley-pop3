@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 import org.junit.jupiter.api.Test;
 
-import us.bringardner.parley.mail.SaslPrep;
+import us.bringardner.parley.net.sasl.SaslPrep;
 
 /** The examples from RFC 4013 section 3, and the other rules. */
 public class TestSaslPrep {

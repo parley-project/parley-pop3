@@ -2,6 +2,13 @@
 
 ## parley-pop3 2.0.0 (unreleased)
 
+### Changed (2026-11-02: IPrincipal split and mailbox ACLs, To-Do 3.2 and 3.4)
+
+- **APOP is checked by the access control list** (`IBaseServer.checkApopLogin`, parley-net 2.0.0), which no longer
+  hands out the password.
+- **The INBOX's rights apply** (RFC 4314, the ACL IMAP uses): RETR and TOP need `r`, DELE `t` and `e`; RETR sets
+  `\Seen` only with `s`. `Pop3RequestProcessor.hasInboxRights(rights)`.
+
 ### Changed (2026-11-02: durations, To-Do 2.19)
 
 - **`<prefix>.autologout` is a duration** (`10m`, `15m`; a bare number is still ms), read by parley-mail.

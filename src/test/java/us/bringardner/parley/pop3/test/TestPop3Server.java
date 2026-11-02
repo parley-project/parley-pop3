@@ -438,6 +438,55 @@ public class TestPop3Server {
 		}
 	}
 
+	/** RETR and TOP need r on the INBOX, DELE t and e, and RETR sets \\Seen only with s (RFC 4314, the ACL IMAP uses). */
+	@Test
+	public void testInboxRights() throws Exception {
+		FileSource dir = maildrop("tony");
+		deliver(dir, "Subject: one\r\n\r\nbody\r\n");
+		deliver(dir, "Subject: two\r\n\r\nbody\r\n");
+		us.bringardner.parley.mail.store.MailStore store = new us.bringardner.parley.mail.store.MailStore(dir,
+				us.bringardner.parley.mail.store.MailboxRegistry.get(), "tony");
+		store.setRights("INBOX", "tony", "l");
+		try (Client c = new Client()) {
+			c.login("tony", "secret");
+			assertTrue(c.cmd("STAT").startsWith("+OK 2 "));
+			assertTrue(c.cmd("RETR 1").startsWith("-ERR"), "no r");
+			assertTrue(c.cmd("TOP 1 0").startsWith("-ERR"), "no r");
+			assertTrue(c.cmd("DELE 1").startsWith("-ERR"), "no t and e");
+			c.cmd("QUIT");
+		}
+		store.setRights("INBOX", "tony", "lr");
+		try (Client c = new Client()) {
+			c.login("tony", "secret");
+			assertTrue(c.cmd("RETR 1").startsWith("+OK"));
+			c.multi();
+			assertTrue(c.cmd("DELE 1").startsWith("-ERR"), "no t and e");
+			c.cmd("QUIT");
+		}
+		us.bringardner.parley.mail.store.Mailbox inbox = store.open("INBOX");
+		try {
+			inbox.refresh(true);
+			for (us.bringardner.parley.mail.store.MessageInfo m : inbox.getMessages()) {
+				assertFalse(inbox.hasFlag(m, "\\Seen"), "no s: RETR doesn't set \\Seen");
+			}
+		} finally {
+			store.getRegistry().release(inbox);
+		}
+		store.setRights("INBOX", "tony", "lrte");
+		try (Client c = new Client()) {
+			c.login("tony", "secret");
+			assertTrue(c.cmd("DELE 1").startsWith("+OK"));
+			assertTrue(c.cmd("QUIT").startsWith("+OK"));
+		}
+		int left = 0;
+		for (FileSource f : dir.listFiles()) {
+			if (!f.getName().startsWith(".") && f.isFile()) {
+				left++;
+			}
+		}
+		assertEquals(1, left, "one message left");
+	}
+
 	@Test
 	public void testApop() throws Exception {
 		maildrop("tony");
