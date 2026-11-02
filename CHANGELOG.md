@@ -7,7 +7,8 @@
 - **APOP is checked by the access control list** (`IBaseServer.checkApopLogin`, parley-net 2.0.0), which no longer
   hands out the password.
 - **The INBOX's rights apply** (RFC 4314, the ACL IMAP uses): RETR and TOP need `r`, DELE `t` and `e`; RETR sets
-  `\Seen` only with `s`. `Pop3RequestProcessor.hasInboxRights(rights)`.
+  `\Seen` only with `s` (so no longer for a user without WRITE). `Pop3RequestProcessor.hasInboxRights(rights)`.
+- **The greeting's APOP timestamp is sent only when the access control list can check APOP** (`supportsApop`).
 
 ### Changed (2026-11-02: durations, To-Do 2.19)
 

@@ -57,6 +57,8 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 	/** UTF-8 mode, set by the UTF8 command (RFC 6856). */
 	private volatile boolean utf8Mode;
 	private final transient Map<String, Object> tempStorage = new HashMap<>();
+	/** True if the greeting sent an APOP timestamp. */
+	private boolean apopOffered;
 	/** The rights on the INBOX, read at login. */
 	private String inboxRights = "";
 	/** The APOP timestamp sent in the greeting (RFC 1939 section 7). */
@@ -93,7 +95,10 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 	@Override
 	public void run() {
 		try {
-			reply(REPLY_OK, getServer().getName() + " POP3 server ready " + timestamp);
+			// the APOP timestamp only when the access control list can check APOP (RFC 1939 section 7)
+			us.bringardner.parley.net.server.IAccessControlList acl = getServer().getAccessControl();
+			apopOffered = acl != null && acl.supportsApop();
+			reply(REPLY_OK, getServer().getName() + " POP3 server ready" + (apopOffered ? " " + timestamp : ""));
 			super.run();
 		} catch (Throwable e) {
 			if (!(e instanceof SocketException)) {
@@ -321,7 +326,7 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 			return LoginResult.TLS_REQUIRED;
 		}
 		user = SaslPrep.prepare(user, false);
-		if (user == null || digest == null) {
+		if (user == null || digest == null || !apopOffered) {
 			return LoginResult.FAILED;
 		}
 		IPrincipal p;
