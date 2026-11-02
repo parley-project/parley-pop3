@@ -2,6 +2,10 @@
 
 ## parley-pop3 2.0.0 (unreleased)
 
+### Changed (2026-11-02: durations, To-Do 2.19)
+
+- **`<prefix>.autologout` is a duration** (`10m`, `15m`; a bare number is still ms), read by parley-mail.
+
 ### Changed (2026-11-01: parley.servers says which servers run, To-Do 2.12)
 
 - **`pop3s` runs on 995 when `parley.servers` lists it** and it has a TLS key store (skipped with a warning while it

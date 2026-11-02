@@ -79,7 +79,7 @@ A server reads its settings from its own configuration (made by parley-net's lau
 | `parley.mail.pop3s.port` | 995 | Port of POP3 with implicit TLS (`pop3s`, which runs when `parley.servers` lists it and it has a key store) |
 | `parley.mail.root` | (required) | Maildrop root; the store has its own settings (see parley-mail) |
 | `parley.mail.fileSource` | default factory | FileSource factory for the root |
-| `parley.mail.pop3.autologout` | 600000 ms | Idle sessions are closed. RFC 1939 requires at least 10 minutes. `setAutologout()` |
+| `parley.mail.pop3.autologout` | `10m` | Idle sessions are closed (a duration: `15m`; a bare number is ms). RFC 1939 requires at least 10 minutes. `setAutologout()` |
 | `parley.mail.pop3.loginFailureDelay` | 1000 ms | Delay before replying to a failed login. `setLoginFailureDelay()` |
 | `parley.mail.pop3.requireTls` | false | Refuse USER, PASS, APOP and AUTH until STLS (or implicit TLS). `setRequireTls()` |
 | `parley.mail.pop3.utf8Downgrade` | `surrogate` | What a client that didn't send UTF8 gets for a message with UTF-8 headers: the RFC 6858 surrogate, or `reject` (`-ERR [UTF8]`). `setUtf8Downgrade()` |
