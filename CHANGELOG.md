@@ -2,6 +2,12 @@
 
 ## parley-pop3 2.0.0 (unreleased)
 
+### Changed (2026-11-01: parley.servers says which servers run, To-Do 2.12)
+
+- **`pop3s` runs on 995 when `parley.servers` lists it** and it has a TLS key store (skipped with a warning while it
+  has none); `parley.mail.pop3s.port` is only its port. **`parley.mail.pop3.secure` is no longer read** (a warning
+  says so): it turned POP3 off and POP3S on, two settings for one thing. `Pop3Server.main` runs `pop3` and `pop3s`.
+
 ### Changed (2026-10-26: each server alone, shared assets carry their own settings)
 
 - **Each POP3 server reads its own settings under its own prefix**: `autologout`, `requireTls` and `utf8Downgrade`
