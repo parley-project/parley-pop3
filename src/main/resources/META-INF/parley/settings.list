@@ -1,0 +1,9 @@
+# The settings parley-pop3 reads, for the mail servers' start-up check
+# (format: parley-net's KnownSettings). Add a name here when code here starts reading it.
+
+prefix parley.mail.pop3
+prefix parley.mail.pop3s
+
+parley.mail.pop3.configFile
+parley.mail.{pop3,pop3s}.requireTls
+parley.mail.{pop3,pop3s}.utf8Downgrade
