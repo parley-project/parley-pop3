@@ -1,6 +1,7 @@
 package us.bringardner.parley.pop3.test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.BufferedReader;
@@ -21,20 +22,22 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import us.bringardner.parley.mail.server.MailServerProvider;
 import us.bringardner.parley.net.server.LaunchSettings;
 import us.bringardner.parley.net.server.ServerContext;
 import us.bringardner.parley.net.server.ServerLauncher;
 
 /**
  * The POP3 providers: found by the launcher, settings from parley-mail.properties then
- * parley-pop3.properties, the suite's user file (parley.mail.users), pop3s off unless its port is set.
+ * parley-pop3.properties, the suite's user file (parley.mail.users), pop3s skipped while it has no key
+ * store, and the 1.x secure flag only a warning.
  */
 public class TestPop3Providers {
 
 	/** Settings other tests in this JVM set that would change what these see */
 	private static final String[] CLEARED = { "parley.mail.pop3.authenticationProvider", "parley.mail.pop3.userFile",
 			"parley.mail.pop3.port", "parley.mail.pop3s.port", "parley.mail.pop3.secure", "parley.mail.users", "parley.mail.root",
-			"parley.mail.pop3.keyStoreName" };
+			"parley.mail.pop3.keyStoreName", "parley.mail.pop3s.keyStoreName", "parley.mail.tls.keyStore" };
 
 	@TempDir
 	File dir;
@@ -92,7 +95,8 @@ public class TestPop3Providers {
 		write("parley-pop3.properties", "parley.mail.pop3.port=" + port); // wins over the shared file
 		launcher = new ServerLauncher("Pop3Test", new LaunchSettings(new Properties()), Arrays.asList("pop3", "pop3s"), dir, new ServerContext());
 		launcher.init();
-		assertEquals(ServerLauncher.State.OFF, launcher.getState("pop3s"), "no pop3s port: off");
+		assertEquals(ServerLauncher.State.OFF, launcher.getState("pop3s"), "no key store: skipped");
+		assertTrue(launcher.getServer("pop3s").getError().contains("key store"), launcher.getServer("pop3s").getError());
 		launcher.startAll();
 		assertEquals(ServerLauncher.State.RUNNING, launcher.getState("pop3"));
 		assertEquals(port, launcher.getServer("pop3").getPort());
@@ -112,14 +116,34 @@ public class TestPop3Providers {
 	}
 
 	@Test
-	public void legacySecureTurnsOnPop3sOnly() throws Exception {
+	public void portIsOnlyAPort() throws Exception {
+		MailServerProvider pop3 = (MailServerProvider) ServerLauncher.providers().get("pop3");
+		MailServerProvider pop3s = (MailServerProvider) ServerLauncher.providers().get("pop3s");
+		Properties c = new Properties();
+		assertEquals(110, pop3.port(c));
+		assertEquals(995, pop3s.port(c), "the standard port, not 0 (off)");
+		assertNull(pop3.unavailable(c));
+		assertTrue(pop3s.unavailable(c).contains("parley.mail.tls.keyStore"), pop3s.unavailable(c));
+		c.setProperty("parley.mail.tls.keyStore", "keystore.p12");
+		assertNull(pop3s.unavailable(c), "the suite's key store");
+		Properties own = new Properties();
+		own.setProperty("parley.mail.pop3s.keyStoreName", "pop3s.p12");
+		assertNull(pop3s.unavailable(own), "its own key store");
+		own.setProperty("parley.mail.pop3s.port", "0");
+		assertTrue(pop3s.unavailable(own).contains("parley.servers"), "port 0 no longer turns it off: " + pop3s.unavailable(own));
+	}
+
+	@Test
+	public void secureFlagIsOnlyAWarning() throws Exception {
 		Properties c = new Properties();
 		c.setProperty("parley.mail.pop3.secure", "true");
-		us.bringardner.parley.net.server.ServerProvider pop3 = ServerLauncher.providers().get("pop3");
-		us.bringardner.parley.net.server.ServerProvider pop3s = ServerLauncher.providers().get("pop3s");
-		assertTrue(!pop3.enabled(c));
-		assertTrue(pop3s.enabled(c));
-		assertTrue(pop3.enabled(new Properties()));
-		assertTrue(!pop3s.enabled(new Properties()));
+		MailServerProvider pop3 = (MailServerProvider) ServerLauncher.providers().get("pop3");
+		MailServerProvider pop3s = (MailServerProvider) ServerLauncher.providers().get("pop3s");
+		assertTrue(pop3.enabled(c) && pop3.unavailable(c) == null, "pop3 still runs");
+		assertEquals(110, pop3.port(c));
+		assertEquals(1, pop3.warnings(c).size());
+		assertTrue(pop3.warnings(c).get(0).startsWith("parley.mail.pop3.secure is no longer read"), pop3.warnings(c).get(0));
+		assertTrue(pop3.warnings(new Properties()).isEmpty());
+		assertTrue(pop3s.warnings(c).isEmpty(), "pop3s's settings are its own");
 	}
 }

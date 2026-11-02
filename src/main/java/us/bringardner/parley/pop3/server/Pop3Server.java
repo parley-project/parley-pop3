@@ -38,7 +38,6 @@ import us.bringardner.parley.pop3.POP3;
  * <table>
  * <caption>Configuration</caption>
  * <tr><td>parley.mail.pop3.port</td><td>110</td><td>Port (parley.mail.pop3s.port, 995, with implicit TLS)</td></tr>
- * <tr><td>parley.mail.pop3.secure</td><td>false</td><td>main starts a server with implicit TLS</td></tr>
  * <tr><td>parley.mail.root</td><td>(required)</td><td>Maildrop root; the store carries its own settings (parley-mail's MailLocks)</td></tr>
  * <tr><td>parley.mail.fileSource</td><td>default factory</td><td>FileSource factory for the root</td></tr>
  * <tr><td>parley.mail.pop3.autologout</td><td>600000 ms</td><td>Idle sessions are closed (RFC 1939: at least 10 minutes)</td></tr>
@@ -142,8 +141,8 @@ public class Pop3Server extends AbstractMailServer implements POP3 {
 	}
 
 	/**
-	 * Run POP3 (and POP3 with implicit TLS when parley.mail.pop3s.port is set) until the process is
-	 * stopped; see parley-net's ServerMain.launch.
+	 * Run POP3 and POP3 with implicit TLS (skipped with a warning while it has no TLS key store) until
+	 * the process is stopped; see parley-net's ServerMain.launch.
 	 */
 	public static void main(String[] args) throws Exception {
 		ServerMain.launch("Pop3Server", args, "pop3", "pop3s");
