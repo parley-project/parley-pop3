@@ -32,6 +32,10 @@ public class Dele extends BaseCommand {
 			processor.replyErr("DELE needs a message number");
 			return;
 		}
+		if (!processor.hasInboxRights("te")) {
+			processor.replyErr("Permission denied");
+			return;
+		}
 		Maildrop.Entry e = message(processor, arg);
 		if (e != null) {
 			int number = parseNumber(arg);

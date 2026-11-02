@@ -65,9 +65,10 @@ parley-net's launcher; see parley-mail's README.
 
 - **Users** come from the access control list, set up as for FtpServer with the `parley.mail.pop3.authenticationProvider` property (for example `us.bringardner.parley.net.server.FileBasedAcl` with `parley.mail.pop3.userFile`). See `MailTestAcl.txt` in parley-mail's test resources (the user file every mail protocol's tests share).
 - **Permissions:** READ is needed to log in and read mail; WRITE to delete it.
+- **INBOX rights (RFC 4314):** the INBOX's access control list, shared with IMAP (parley-mail's `.imap-acl`), applies too, limited by READ and WRITE: RETR and TOP need `r`, DELE needs `t` and `e`, and RETR marks a message `\Seen` only with `s`. An INBOX without a list gives its owner every right, so nothing changes until an ACL is set. The rights are read at login.
 - **Maildrops:** each user's maildrop is a directory under the root, named by the principal's `maildrop` parameter (default: the user name). Several users can share one maildrop.
 - **Messages** are files in the maildrop, in name order. Names starting with "." are ignored: delivery (parley-mail's `MailStore.deliver`) writes a hidden temp file and renames it, so a session never sees a message half written.
-- **APOP** needs the user's password stored in plain text in the access list; users with `{PBKDF2}` hashes use USER/PASS or AUTH PLAIN.
+- **APOP** is checked by the access control list (`verifyApop`), so the password never leaves it; it needs the user's password stored in plain text there; users with `{PBKDF2}` hashes use USER/PASS or AUTH PLAIN.
 
 ### Configuration
 

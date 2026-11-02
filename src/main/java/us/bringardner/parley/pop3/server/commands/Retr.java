@@ -27,11 +27,17 @@ public class Retr extends BaseCommand {
 			processor.replyErr("RETR needs a message number");
 			return;
 		}
+		if (!processor.hasInboxRights("r")) {
+			processor.replyErr("Permission denied");
+			return;
+		}
 		Maildrop.Entry e = message(processor, arg);
 		if (e != null && !processor.rejectUtf8(e)) {
 			processor.replyContent(e.getSize() + " octets", out -> processor.getMaildrop().writeMessage(e, out));
 			// read: IMAP shows it as read (RFC 1939 has no flags; TOP doesn't count)
-			processor.getMaildrop().markSeen(e);
+			if (processor.hasInboxRights("s")) {
+				processor.getMaildrop().markSeen(e);
+			}
 		}
 	}
 }

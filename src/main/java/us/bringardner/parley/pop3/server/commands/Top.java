@@ -25,6 +25,10 @@ public class Top extends BaseCommand {
 			processor.replyErr("TOP needs a message number and a number of lines");
 			return;
 		}
+		if (!processor.hasInboxRights("r")) {
+			processor.replyErr("Permission denied");
+			return;
+		}
 		Maildrop.Entry e = message(processor, arg);
 		if (e != null && !processor.rejectUtf8(e)) {
 			processor.replyContent("Top of message follows", out -> processor.getMaildrop().writeTop(e, lines, out));

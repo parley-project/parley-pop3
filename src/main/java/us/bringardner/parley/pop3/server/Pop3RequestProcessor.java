@@ -1,31 +1,25 @@
 package us.bringardner.parley.pop3.server;
 
-import us.bringardner.parley.core.util.Hex;
 import java.io.BufferedOutputStream;
 import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.SocketException;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.locks.ReentrantLock;
 
 import us.bringardner.parley.core.ILogger;
 import us.bringardner.parley.files.FileSource;
-import us.bringardner.parley.mail.SaslPrep;
+import us.bringardner.parley.net.sasl.SaslPrep;
 import us.bringardner.parley.net.IConnection;
 import us.bringardner.parley.mail.server.AbstractMailProcessor;
-import us.bringardner.parley.net.server.FileBasedAcl;
 import us.bringardner.parley.net.server.AccessControlUnavailableException;
-import us.bringardner.parley.net.server.IAccessControlList;
 import us.bringardner.parley.net.server.ICommand;
 import us.bringardner.parley.net.server.IPrincipal;
+import us.bringardner.parley.mail.store.MailboxAcl;
 import us.bringardner.parley.net.server.IRequestContext;
 import us.bringardner.parley.net.server.StateMachine;
 import us.bringardner.parley.pop3.POP3;
@@ -63,6 +57,8 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 	/** UTF-8 mode, set by the UTF8 command (RFC 6856). */
 	private volatile boolean utf8Mode;
 	private final transient Map<String, Object> tempStorage = new HashMap<>();
+	/** The rights on the INBOX, read at login. */
+	private String inboxRights = "";
 	/** The APOP timestamp sent in the greeting (RFC 1939 section 7). */
 	private final String timestamp;
 	private transient Maildrop maildrop;
@@ -314,59 +310,29 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 	}
 
 	/**
-	 * Log in with APOP (RFC 1939 section 7): the digest is MD5(timestamp + secret).
-	 * This needs the user's password stored in plain text in the access control
-	 * list; users with hashed passwords can't use APOP. The user name and the
-	 * stored password are prepared with SASLprep (RFC 6856 section 2.2).
+	 * Log in with APOP (RFC 1939 section 7): the digest is MD5(timestamp + secret),
+	 * checked by the access control list ({@code IAccessControlList.verifyApop}). It needs
+	 * the user's password kept in plain text there; users with hashed passwords can't use
+	 * APOP. The user name and the stored password are prepared with SASLprep (RFC 6856
+	 * section 2.2).
 	 */
 	public LoginResult loginApop(String user, String digest) {
 		if (isLoginBlockedUntilTls()) {
 			return LoginResult.TLS_REQUIRED;
 		}
 		user = SaslPrep.prepare(user, false);
-		if (user == null) {
-			return LoginResult.FAILED;
-		}
-		IAccessControlList acl = getServer().getAccessControl();
-		IPrincipal stored;
-		try {
-			stored = acl == null ? null : acl.findPrincipal(user);
-		} catch (AccessControlUnavailableException e) {
-			logError("Can't look up " + user + ": " + e.getMessage());
-			return LoginResult.UNAVAILABLE;
-		}
-		byte[] secret = stored == null ? null : stored.getCredentials();
-		if (secret == null || new String(secret, StandardCharsets.UTF_8).startsWith(FileBasedAcl.HASH_PREFIX)) {
-			return LoginResult.FAILED;
-		}
-		String prepared = SaslPrep.prepare(new String(secret, StandardCharsets.UTF_8), true);
-		if (prepared == null) {
-			return LoginResult.FAILED;
-		}
-		String expected = md5Hex(timestamp.getBytes(StandardCharsets.US_ASCII), prepared.getBytes(StandardCharsets.UTF_8));
-		if (!MessageDigest.isEqual(expected.getBytes(StandardCharsets.US_ASCII),
-				digest.toLowerCase(Locale.ROOT).getBytes(StandardCharsets.US_ASCII))) {
+		if (user == null || digest == null) {
 			return LoginResult.FAILED;
 		}
 		IPrincipal p;
 		try {
-			p = getServer().checkLogin(user, secret);
+			// the access control list checks the digest: the secret never leaves it
+			p = getServer().checkApopLogin(user, timestamp, digest);
 		} catch (AccessControlUnavailableException e) {
 			logError("Can't look up " + user + ": " + e.getMessage());
 			return LoginResult.UNAVAILABLE;
 		}
 		return p == null ? LoginResult.FAILED : openMaildrop(p);
-	}
-
-	static String md5Hex(byte[] a, byte[] b) {
-		try {
-			MessageDigest md = MessageDigest.getInstance("MD5");
-			md.update(a);
-			md.update(b);
-			return Hex.encode(md.digest());
-		} catch (NoSuchAlgorithmException e) {
-			throw new IllegalStateException(e);
-		}
 	}
 
 	/** Lock and open the user's maildrop, entering the TRANSACTION state. */
@@ -393,6 +359,7 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 					}
 				}
 				maildrop = Maildrop.open(dir, utf8Mode);
+				inboxRights = inboxRights(dir, p);
 			} catch (IOException | RuntimeException e) {
 				maildrop = null;
 				closeMaildropLock();
@@ -409,6 +376,25 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 			lastError = e.getMessage();
 			return LoginResult.ERROR;
 		}
+	}
+
+	/**
+	 * The user's rights on the INBOX (RFC 4314, parley-mail's {@code .imap-acl}, shared with IMAP),
+	 * limited by the READ and WRITE permissions.
+	 */
+	private String inboxRights(FileSource dir, IPrincipal p) throws IOException {
+		String r = MailboxAcl.rightsOf(MailboxAcl.read(dir), p.getName(), p.getName(), p.getGroups());
+		return MailboxAcl.limit(r, getServer().isAuthorized(p, Pop3Command.READ_PERMISSION),
+				getServer().isAuthorized(p, Pop3Command.WRITE_PERMISSION));
+	}
+
+	/**
+	 * True if the user has all these rights on the INBOX: RETR and TOP need r, DELE t and e,
+	 * and RETR sets \Seen only with s.
+	 * @since 2.0.0
+	 */
+	public boolean hasInboxRights(String rights) {
+		return MailboxAcl.has(inboxRights, rights);
 	}
 
 	/** The message of the last error opening a maildrop. */
