@@ -47,6 +47,14 @@ public class TestServerConfiguration {
 	}
 
 	@Test
+	public void autologoutIsADuration() throws Exception {
+		Pop3Server s = make(props("parley.mail.root", dir.getPath(), "parley.mail.pop3.autologout", "15m"), false);
+		assertEquals(15 * 60_000, s.getAutologout());
+		s = make(props("parley.mail.root", dir.getPath(), "parley.mail.pop3.autologout", "0"), false);
+		assertEquals(Pop3Server.DEFAULT_AUTOLOGOUT, s.getAutologout(), "0 gives the default");
+	}
+
+	@Test
 	public void pop3sReadsItsOwnPrefix() throws Exception {
 		Properties c = props("parley.mail.root", dir.getPath(), "parley.mail.pop3.requireTls", "true", "parley.mail.pop3.autologout", "700000",
 				"parley.mail.pop3s.autologout", "900000");
