@@ -2,6 +2,14 @@
 
 ## parley-pop3 2.0.0 (unreleased)
 
+
+### Changed (2026-11-03: the launcher moved to parley-mail-admin)
+
+- **`Pop3Providers` (the providers pop3, pop3s) moved to parley-mail-admin** with the launcher, which runs the mail suite; this module
+  registers no server providers. Its `main` runs its servers alone in one process with parley-net's `ServerMain.run`
+  (its settings file and the command line, as system properties; the implicit TLS server only when there is a TLS
+  key store), not through the launcher.
+
 ### Changed (2026-11-02: IPrincipal split and mailbox ACLs, To-Do 3.2 and 3.4)
 
 - **APOP is checked by the access control list** (`IBaseServer.checkApopLogin`, parley-net 2.0.0), which no longer
