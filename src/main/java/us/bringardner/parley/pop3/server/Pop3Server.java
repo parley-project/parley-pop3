@@ -141,11 +141,40 @@ public class Pop3Server extends AbstractMailServer implements POP3 {
 	}
 
 	/**
-	 * Run POP3 and POP3 with implicit TLS (skipped with a warning while it has no TLS key store) until
-	 * the process is stopped; see parley-net's ServerMain.launch.
+	 * Run POP3 (parley.mail.pop3.port, default 110) and, when there is a TLS key store, POP3 with
+	 * implicit TLS (parley.mail.pop3s.port, default 995) in this process until it is stopped, with
+	 * parley-net's ServerMain.run: the settings are parley-pop3.properties in the settings folder (or
+	 * the file parley.mail.pop3.configFile names) and the command line, read as system properties.
+	 * (The mail suite's servers are run by parley-mail-admin's launcher.)
 	 */
 	public static void main(String[] args) throws Exception {
-		ServerMain.launch("Pop3Server", args, "pop3", "pop3s");
+		ServerMain.run("Pop3Server", args, CONFIG_PROP, "parley-pop3.properties", () -> {
+			java.util.List<ServerMain.Service> ret = new java.util.ArrayList<>();
+			{
+				int p = standalonePort(POP3_PREFIX, POP3_PORT);
+				ret.add(ServerMain.service(new Pop3Server(p, POP3_NAME, false), "POP3 server"));
+			}
+			if (hasKeyStore(POP3S_PREFIX)) {
+				int p = standalonePort(POP3S_PREFIX, POP3S_PORT);
+				ret.add(ServerMain.service(new Pop3Server(p, POP3_NAME, true), "POP3 server (implicit TLS)"));
+			} else {
+				System.err.println("Warning: POP3 server (implicit TLS) is skipped: no TLS key store (set " + MAIL_TLS_KEY_STORE_PROP + " or " + POP3S_PREFIX + ".keyStoreName)");
+			}
+			return ret;
+		});
+	}
+
+	/** A server's port in a standalone process: {@code <prefix>.port}, else its standard port */
+	private static int standalonePort(String prefix, int standard) {
+		String v = System.getProperty(prefix + ".port");
+		return v == null || v.trim().isEmpty() ? standard : Integer.parseInt(v.trim());
+	}
+
+	/** A TLS key store for this server in a standalone process: the suite's, or its own */
+	private static boolean hasKeyStore(String prefix) {
+		String a = System.getProperty(MAIL_TLS_KEY_STORE_PROP);
+		String b = System.getProperty(prefix + ".keyStoreName");
+		return (a != null && !a.trim().isEmpty()) || (b != null && !b.trim().isEmpty());
 	}
 
 	private void initMe() {

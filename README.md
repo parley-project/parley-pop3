@@ -55,11 +55,11 @@ POP3 never writes messages. Mail is delivered by SMTP, or by your code through t
 
 Or from the command line: `java us.bringardner.parley.pop3.server.Pop3Server -Dparley.mail.pop3.port=1110 -Dparley.mail.root=/var/mail/pop3`
 
-`Pop3Server.main` runs `pop3` and `pop3s` (with implicit TLS; skipped with a warning while it has no TLS key store), with
-parley-net's `ServerMain.launch`: settings from `parley-mail.properties` then `parley-pop3.properties` in
-the settings folder, the JVM's `-D` options and the command line; a JMX bean per server. To run POP3
-with other servers in one process, use the providers `pop3` and `pop3s` (`Pop3Providers`) with
-parley-net's launcher; see parley-mail's README.
+`Pop3Server.main` runs POP3 and, when there is a TLS key store, POP3 with implicit TLS (skipped with a
+warning otherwise), with parley-net's `ServerMain.run`: settings from `parley-pop3.properties` in the
+settings folder (or the file `parley.mail.pop3.configFile` names), the JVM's `-D` options and the
+command line, as system properties. To run POP3 with other servers in one process, use the mail
+suite's launcher in parley-mail-admin (ids `pop3`, `pop3s`; see parley-mail's README).
 
 ### Users and maildrops
 
@@ -72,7 +72,7 @@ parley-net's launcher; see parley-mail's README.
 
 ### Configuration
 
-A server reads its settings from its own configuration (made by parley-net's launcher, or the system properties for a server made by code), or they are set with the matching `Pop3Server` setter. Its own settings use its prefix, `parley.mail.pop3` or, with implicit TLS, `parley.mail.pop3s` (`parley.mail.pop3s.autologout`, say), with no fallback from one to the other.
+A server reads its settings from its own configuration (made by the mail suite's launcher, or the system properties for a server made by code), or they are set with the matching `Pop3Server` setter. Its own settings use its prefix, `parley.mail.pop3` or, with implicit TLS, `parley.mail.pop3s` (`parley.mail.pop3s.autologout`, say), with no fallback from one to the other.
 
 | Property | Default | Meaning |
 |---|---|---|
