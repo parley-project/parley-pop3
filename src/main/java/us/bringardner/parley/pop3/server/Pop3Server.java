@@ -152,11 +152,11 @@ public class Pop3Server extends AbstractMailServer implements POP3 {
 			java.util.List<ServerMain.Service> ret = new java.util.ArrayList<>();
 			{
 				int p = standalonePort(POP3_PREFIX, POP3_PORT);
-				ret.add(ServerMain.service(new Pop3Server(p, POP3_NAME, false), "POP3 server"));
+				ret.add(us.bringardner.parley.mail.server.MailServerMain.service(new Pop3Server(p, POP3_NAME, false), "POP3 server", "pop3"));
 			}
 			if (hasKeyStore(POP3S_PREFIX)) {
 				int p = standalonePort(POP3S_PREFIX, POP3S_PORT);
-				ret.add(ServerMain.service(new Pop3Server(p, POP3_NAME, true), "POP3 server (implicit TLS)"));
+				ret.add(us.bringardner.parley.mail.server.MailServerMain.service(new Pop3Server(p, POP3_NAME, true), "POP3 server (implicit TLS)", "pop3s"));
 			} else {
 				System.err.println("Warning: POP3 server (implicit TLS) is skipped: no TLS key store (set " + MAIL_TLS_KEY_STORE_PROP + " or " + POP3S_PREFIX + ".keyStoreName)");
 			}

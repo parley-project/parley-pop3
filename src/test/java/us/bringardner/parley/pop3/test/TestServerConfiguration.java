@@ -11,7 +11,6 @@ import java.util.Properties;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-import us.bringardner.parley.mail.server.AbstractMailServer;
 import us.bringardner.parley.pop3.server.Pop3Server;
 
 /**
@@ -33,7 +32,7 @@ public class TestServerConfiguration {
 	}
 
 	private static Pop3Server make(Properties c, boolean secure) throws Exception {
-		return AbstractMailServer.makeIn(null, c, () -> new Pop3Server(0, Pop3Server.POP3_NAME, secure));
+		return us.bringardner.parley.core.BaseObject.makeWith(c, () -> new Pop3Server(0, Pop3Server.POP3_NAME, secure));
 	}
 
 	@Test
