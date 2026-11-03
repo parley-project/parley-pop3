@@ -101,7 +101,9 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 			reply(REPLY_OK, getServer().getName() + " POP3 server ready" + (apopOffered ? " " + timestamp : ""));
 			super.run();
 		} catch (Throwable e) {
-			if (!(e instanceof SocketException)) {
+			if (isTlsHandshakeFailure(e)) {
+				logTlsHandshakeFailure(e);
+			} else if (!(e instanceof SocketException)) {
 				logError("An error occurred in the POP3 session; closing the connection.", e);
 			}
 		} finally {
