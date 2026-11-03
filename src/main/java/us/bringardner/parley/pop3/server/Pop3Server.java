@@ -145,7 +145,8 @@ public class Pop3Server extends AbstractMailServer implements POP3 {
 	 * implicit TLS (parley.mail.pop3s.port, default 995) in this process until it is stopped, with
 	 * parley-net's ServerMain.run: the settings are parley-pop3.properties in the settings folder (or
 	 * the file parley.mail.pop3.configFile names) and the command line, read as system properties.
-	 * (The mail suite's servers are run by parley-mail-admin's launcher.)
+	 * Each server's store is the JMX bean us.bringardner.parley:type=MailStore,name=<its id> while it
+	 * runs (MailServerMain).
 	 */
 	public static void main(String[] args) throws Exception {
 		ServerMain.run("Pop3Server", args, CONFIG_PROP, "parley-pop3.properties", () -> {

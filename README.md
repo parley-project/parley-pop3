@@ -58,8 +58,9 @@ Or from the command line: `java us.bringardner.parley.pop3.server.Pop3Server -Dp
 `Pop3Server.main` runs POP3 and, when there is a TLS key store, POP3 with implicit TLS (skipped with a
 warning otherwise), with parley-net's `ServerMain.run`: settings from `parley-pop3.properties` in the
 settings folder (or the file `parley.mail.pop3.configFile` names), the JVM's `-D` options and the
-command line, as system properties. To run POP3 with other servers in one process, use the mail
-suite's launcher in parley-mail-admin (ids `pop3`, `pop3s`; see parley-mail's README).
+command line, as system properties. While they run, their stores are the JMX beans
+`us.bringardner.parley:type=MailStore,name=pop3` and `pop3s`. Running POP3 with other servers in one
+process is an application's job (see parley-mail's README; parley-mail-admin is an example).
 
 ### Users and maildrops
 
@@ -72,7 +73,7 @@ suite's launcher in parley-mail-admin (ids `pop3`, `pop3s`; see parley-mail's RE
 
 ### Configuration
 
-A server reads its settings from its own configuration (made by the mail suite's launcher, or the system properties for a server made by code), or they are set with the matching `Pop3Server` setter. Its own settings use its prefix, `parley.mail.pop3` or, with implicit TLS, `parley.mail.pop3s` (`parley.mail.pop3s.autologout`, say), with no fallback from one to the other.
+A server reads its settings from its own configuration (given by whoever made it, or the system properties for a server made by code or by its main), or they are set with the matching `Pop3Server` setter. Its own settings use its prefix, `parley.mail.pop3` or, with implicit TLS, `parley.mail.pop3s` (`parley.mail.pop3s.autologout`, say), with no fallback from one to the other.
 
 | Property | Default | Meaning |
 |---|---|---|
