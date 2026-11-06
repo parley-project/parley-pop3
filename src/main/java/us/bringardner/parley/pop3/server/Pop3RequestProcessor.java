@@ -13,12 +13,19 @@ import java.util.concurrent.locks.ReentrantLock;
 
 import us.bringardner.parley.core.ILogger;
 import us.bringardner.parley.files.FileSource;
+import us.bringardner.parley.iam.AuthenticationResult;
+import us.bringardner.parley.iam.AuthorizationResult;
+import us.bringardner.parley.iam.ParleyPermission;
+import us.bringardner.parley.iam.ParleyPrincipal;
+import us.bringardner.parley.iam.ProofCredential;
+import us.bringardner.parley.iam.StoredCredentialType;
+import us.bringardner.parley.iam.UserRegistry;
+import us.bringardner.parley.iam.UserRegistryUnavailableException;
 import us.bringardner.parley.net.sasl.SaslPrep;
 import us.bringardner.parley.net.IConnection;
 import us.bringardner.parley.mail.server.AbstractMailProcessor;
-import us.bringardner.parley.net.server.AccessControlUnavailableException;
+import us.bringardner.parley.net.server.ApopVerifier;
 import us.bringardner.parley.net.server.ICommand;
-import us.bringardner.parley.net.server.IPrincipal;
 import us.bringardner.parley.mail.store.MailboxAcl;
 import us.bringardner.parley.net.server.IRequestContext;
 import us.bringardner.parley.net.server.StateMachine;
@@ -33,7 +40,7 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 
 	private static final long serialVersionUID = 1L;
 
-	/** Principal parameter: the user's maildrop directory, relative to the maildrop root. */
+	/** Principal attribute: the user's maildrop directory, relative to the maildrop root. */
 	public static final String PARAMETER_MAILDROP = "maildrop";
 
 	/** Session states, RFC 1939 section 3. */
@@ -44,7 +51,7 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 	/** The outcome of a login attempt. */
 	public enum LoginResult {
 		OK, FAILED, IN_USE, TLS_REQUIRED, ERROR,
-		/** The access control list can't answer now (its database is down, say): try again later. @since 1.1.0 */
+		/** The user registry can't answer now (its database is down, say): try again later. @since 1.1.0 */
 		UNAVAILABLE
 	}
 
@@ -95,9 +102,9 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 	@Override
 	public void run() {
 		try {
-			// the APOP timestamp only when the access control list can check APOP (RFC 1939 section 7)
-			us.bringardner.parley.net.server.IAccessControlList acl = getServer().getAccessControl();
-			apopOffered = acl != null && acl.supportsApop();
+			// the APOP timestamp only when the user registry keeps plain text secrets (RFC 1939 section 7)
+			UserRegistry registry = getServer().getUserRegistry();
+			apopOffered = registry != null && registry.supports(ProofCredential.class, StoredCredentialType.PLAIN_TEXT);
 			reply(REPLY_OK, getServer().getName() + " POP3 server ready" + (apopOffered ? " " + timestamp : ""));
 			super.run();
 		} catch (Throwable e) {
@@ -140,11 +147,30 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 			reply(REPLY_ERR, cmd.getName() + " is not valid in the " + states.get() + " state");
 			return;
 		}
-		if (states.is(State.TRANSACTION) && cmd.requiresAuthorization() && !isAuthorized(cmd.getPermission())) {
-			reply(REPLY_ERR, "Permission denied for " + cmd.getName());
-			return;
+		if (states.is(State.TRANSACTION) && cmd.requiresAuthorization()) {
+			AuthorizationResult allowed = checkPermission(cmd.getPermission(), null);
+			if (allowed.getStatus() == AuthorizationResult.Status.UNAVAILABLE) {
+				logError(cmd.getName() + " not checked: " + allowed.getReason());
+				replyPermissionUnavailable(cmd);
+				return;
+			}
+			if (allowed.getStatus() != AuthorizationResult.Status.ALLOWED) {
+				replyNotAuthorized(cmd);
+				return;
+			}
 		}
 		cmd.execute(this, context);
+	}
+
+	@Override
+	protected void replyNotAuthorized(ICommand command) throws IOException {
+		reply(REPLY_ERR, "Permission denied for " + command.getName());
+	}
+
+	/** The user registry can't answer a permission check now: a temporary error, not "denied" (RFC 3206). */
+	@Override
+	protected void replyPermissionUnavailable(ICommand command) throws IOException {
+		reply(REPLY_ERR, CODE_SYS_TEMP + " " + command.getName() + " can't be checked now, try again later");
 	}
 
 	/** Echo client text in a reply without control characters. */
@@ -278,73 +304,117 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 	}
 
 	/**
-	 * Log in with a user name and password (USER/PASS or AUTH PLAIN). Both are
-	 * prepared with SASLprep (RFC 6856 section 2.2, RFC 4616); invalid UTF-8 or
-	 * prohibited characters fail the login.
+	 * Log in with a user name and password (USER/PASS). Both are prepared with SASLprep
+	 * (RFC 6856 section 2.2, RFC 4616) and checked by the server's user registry through the
+	 * session's {@code authenticate}; invalid UTF-8 or prohibited characters fail the login.
+	 * A refused login is counted, and answered late, by parley-net.
+	 *
+	 * @throws IllegalStateException when the server has no user registry
 	 */
 	public LoginResult login(String user, String password) {
 		if (isLoginBlockedUntilTls()) {
 			return LoginResult.TLS_REQUIRED;
 		}
-		IPrincipal p;
-		try {
-			p = checkLogin(user, password);
-		} catch (AccessControlUnavailableException e) {
-			logError("Can't check the login of " + user + ": " + e.getMessage());
-			return LoginResult.UNAVAILABLE;
-		}
-		return p == null ? LoginResult.FAILED : openMaildrop(p);
+		return afterAuthentication(authenticate(user, password), user);
 	}
 
 	/**
-	 * Log in a user a SASL mechanism has already proven (AUTH SCRAM-*): the maildrop is opened as
-	 * for {@link #login(String, String)}.
+	 * Log in a user a SASL mechanism has already proven (AUTH SCRAM-*), with the authenticator
+	 * that ran the exchange: the maildrop is opened as for {@link #login(String, String)}.
 	 *
-	 * @since 1.1.0
+	 * @param authenticator the authenticator of the successful exchange
+	 * @param user the user from the exchange's outcome
+	 * @since 2.0.0 (was loginVerified(String) since 1.1.0)
 	 */
-	public LoginResult loginVerified(String user) {
+	public LoginResult loginVerified(Pop3SaslAuthenticator authenticator, String user) {
 		if (isLoginBlockedUntilTls()) {
 			return LoginResult.TLS_REQUIRED;
 		}
-		IPrincipal p;
-		try {
-			p = verifiedPrincipal(user);
-		} catch (AccessControlUnavailableException e) {
-			logError("Can't look up " + user + ": " + e.getMessage());
-			return LoginResult.UNAVAILABLE;
-		}
-		return p == null ? LoginResult.FAILED : openMaildrop(p);
+		return afterAuthentication(authenticator.verified(user), user);
 	}
 
 	/**
-	 * Log in with APOP (RFC 1939 section 7): the digest is MD5(timestamp + secret),
-	 * checked by the access control list ({@code IAccessControlList.verifyApop}). It needs
-	 * the user's password kept in plain text there; users with hashed passwords can't use
-	 * APOP. The user name and the stored password are prepared with SASLprep (RFC 6856
-	 * section 2.2).
+	 * A SASL authenticator for this session's AUTH command (PLAIN, and SCRAM when the user registry
+	 * can serve it).
+	 *
+	 * @since 2.0.0
+	 */
+	@Override
+	public Pop3SaslAuthenticator newSaslAuthenticator() {
+		return new Pop3SaslAuthenticator(this);
+	}
+
+	/**
+	 * Log in with APOP (RFC 1939 section 7): the digest is MD5(timestamp + secret). The server's
+	 * user registry gives the user's plain text secret ({@link StoredCredentialType#PLAIN_TEXT})
+	 * to parley-net's {@link ApopVerifier}, through the session's {@code authenticate} with a
+	 * {@link ProofCredential}; users without a plain text password can't use APOP. The user name
+	 * is prepared with SASLprep (RFC 6856 section 2.2).
+	 *
+	 * @throws IllegalStateException when the server has no user registry
 	 */
 	public LoginResult loginApop(String user, String digest) {
 		if (isLoginBlockedUntilTls()) {
 			return LoginResult.TLS_REQUIRED;
 		}
-		user = SaslPrep.prepare(user, false);
-		if (user == null || digest == null || !apopOffered) {
+		String prepared = SaslPrep.prepare(user, false);
+		if (prepared == null || prepared.isEmpty() || digest == null || !apopOffered) {
+			getServer().requireUserRegistry(); // no registry is a mistake in the configuration, not a refusal
+			refuse(apopOffered ? "the user name can't be prepared (SASLprep)" : "APOP wasn't offered");
 			return LoginResult.FAILED;
 		}
-		IPrincipal p;
-		try {
-			// the access control list checks the digest: the secret never leaves it
-			p = getServer().checkApopLogin(user, timestamp, digest);
-		} catch (AccessControlUnavailableException e) {
-			logError("Can't look up " + user + ": " + e.getMessage());
-			return LoginResult.UNAVAILABLE;
-		}
-		return p == null ? LoginResult.FAILED : openMaildrop(p);
+		ProofCredential credential = new ProofCredential(prepared, StoredCredentialType.PLAIN_TEXT,
+				new ApopVerifier(timestamp, digest), getRequester());
+		return afterAuthentication(authenticate(credential), prepared);
 	}
 
-	/** Lock and open the user's maildrop, entering the TRANSACTION state. */
-	private LoginResult openMaildrop(IPrincipal p) {
-		if (!getServer().isAuthorized(p, Pop3Command.READ_PERMISSION)) {
+	/**
+	 * After a login was checked: open the maildrop when it was good; a temporary failure when the
+	 * user registry couldn't answer; otherwise FAILED (already counted by the session).
+	 */
+	LoginResult afterAuthentication(AuthenticationResult result, String user) {
+		if (result == null) {
+			return LoginResult.FAILED;
+		}
+		switch (result.getStatus()) {
+		case AUTHENTICATED:
+			return openMaildrop(result.getPrincipal());
+		case UNAVAILABLE:
+			logError("Can't check the login of " + user + ": " + result.getReason());
+			return LoginResult.UNAVAILABLE;
+		default:
+			return LoginResult.FAILED;
+		}
+	}
+
+	/**
+	 * Lock and open the user's maildrop, entering the TRANSACTION state. The session is logged
+	 * in already; it is logged out again when the maildrop can't be opened.
+	 */
+	private LoginResult openMaildrop(ParleyPrincipal p) {
+		LoginResult ret = LoginResult.ERROR;
+		try {
+			ret = openMaildropFor(p);
+			return ret;
+		} finally {
+			if (ret != LoginResult.OK) {
+				logout();
+			}
+		}
+	}
+
+	private LoginResult openMaildropFor(ParleyPrincipal p) {
+		if (p == null) {
+			return LoginResult.FAILED;
+		}
+		AuthorizationResult read = checkPermission(Pop3Command.READ_PERMISSION, null);
+		if (read.getStatus() == AuthorizationResult.Status.UNAVAILABLE) {
+			logError("Can't check the read permission of " + p.getName() + ": " + read.getReason());
+			return LoginResult.UNAVAILABLE;
+		}
+		if (read.getStatus() != AuthorizationResult.Status.ALLOWED) {
+			// no POP access: answered as a failed login, and counted as one
+			refuse(p.getName() + " doesn't hold read");
 			return LoginResult.FAILED;
 		}
 		try {
@@ -365,8 +435,8 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 						return LoginResult.IN_USE;
 					}
 				}
-				maildrop = Maildrop.open(dir, utf8Mode);
 				inboxRights = inboxRights(dir, p);
+				maildrop = Maildrop.open(dir, utf8Mode);
 			} catch (IOException | RuntimeException e) {
 				maildrop = null;
 				closeMaildropLock();
@@ -374,10 +444,12 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 				throw e;
 			}
 			lockKey = key;
-			setPrincipal(p);
 			states.moveTo(State.TRANSACTION);
 			tempStorage.clear();
 			return LoginResult.OK;
+		} catch (UserRegistryUnavailableException e) {
+			logError("Can't check the rights of " + p.getName() + ": " + e.getMessage());
+			return LoginResult.UNAVAILABLE;
 		} catch (IOException | RuntimeException e) {
 			logError("Can't open the maildrop of " + p.getName(), e);
 			lastError = e.getMessage();
@@ -387,12 +459,63 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 
 	/**
 	 * The user's rights on the INBOX (RFC 4314, parley-mail's {@code .imap-acl}, shared with IMAP),
-	 * limited by the READ and WRITE permissions.
+	 * limited by the read and write permissions.
+	 *
+	 * @throws UserRegistryUnavailableException when the user registry can't answer now
 	 */
-	private String inboxRights(FileSource dir, IPrincipal p) throws IOException {
-		String r = MailboxAcl.rightsOf(MailboxAcl.read(dir), p.getName(), p.getName(), p.getGroups());
-		return MailboxAcl.limit(r, getServer().isAuthorized(p, Pop3Command.READ_PERMISSION),
-				getServer().isAuthorized(p, Pop3Command.WRITE_PERMISSION));
+	private String inboxRights(FileSource dir, ParleyPrincipal p) throws IOException {
+		String r = MailboxAcl.rightsOf(MailboxAcl.read(dir), p.getName(), p.getName(), groupNames(p));
+		return MailboxAcl.limit(r, holds(Pop3Command.READ_PERMISSION), holds(Pop3Command.WRITE_PERMISSION));
+	}
+
+	/** True when the registry allows it; an exception when it can't answer. */
+	private boolean holds(ParleyPermission permission) throws UserRegistryUnavailableException {
+		AuthorizationResult r = checkPermission(permission, null);
+		if (r.getStatus() == AuthorizationResult.Status.UNAVAILABLE) {
+			throw new UserRegistryUnavailableException(r.getReason());
+		}
+		return r.getStatus() == AuthorizationResult.Status.ALLOWED;
+	}
+
+	/**
+	 * The names of the user's groups, for {@code $group} entries in the mailbox ACL. parley-iam's
+	 * {@link UserRegistry} has no group lookup; the registries that know groups (parley-net's
+	 * FileUserRegistry, parley-iam's BasicUserRegistry, parley-net-acl-jdbc's registry) each have a
+	 * public {@code findGroups(ParleyPrincipal)}, which is used when the server's registry has one.
+	 * Otherwise the user is in no groups.
+	 *
+	 * @throws UserRegistryUnavailableException when the user registry can't answer now
+	 */
+	private java.util.Collection<String> groupNames(ParleyPrincipal p) throws UserRegistryUnavailableException {
+		java.util.List<String> ret = new java.util.ArrayList<>();
+		UserRegistry registry = getServer().getUserRegistry();
+		if (registry == null) {
+			return ret;
+		}
+		Object groups;
+		try {
+			java.lang.reflect.Method m = registry.getClass().getMethod("findGroups", ParleyPrincipal.class);
+			groups = m.invoke(registry, p);
+		} catch (NoSuchMethodException | IllegalAccessException | RuntimeException e) {
+			return ret;
+		} catch (java.lang.reflect.InvocationTargetException e) {
+			Throwable cause = e.getCause();
+			if (cause instanceof UserRegistryUnavailableException) {
+				throw (UserRegistryUnavailableException) cause;
+			}
+			if (cause instanceof RuntimeException) {
+				throw (RuntimeException) cause;
+			}
+			throw new UserRegistryUnavailableException("findGroups failed: " + cause);
+		}
+		if (groups instanceof Iterable) {
+			for (Object g : (Iterable<?>) groups) {
+				if (g instanceof ParleyPrincipal) {
+					ret.add(((ParleyPrincipal) g).getName());
+				}
+			}
+		}
+		return ret;
 	}
 
 	/**
@@ -409,7 +532,10 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 		return lastError;
 	}
 
-	/** Reply to a failed login; after too many failures the connection is closed. */
+	/**
+	 * Reply to a login. A refused login has been counted and delayed by the session already; after
+	 * too many, the command processor closes the connection after this reply.
+	 */
 	public void replyLoginResult(LoginResult result) throws IOException {
 		switch (result) {
 		case OK:
@@ -425,15 +551,11 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 			replyErr(CODE_SYS_TEMP + " The maildrop can't be opened");
 			break;
 		case UNAVAILABLE:
-			// not the client's fault: no delay, not counted as a failed login
+			// not the client's fault: no delay, not counted as a failed login (RFC 3206)
 			replyErr(CODE_SYS_TEMP + " Logins can't be checked now, try again later");
 			break;
 		default:
-			loginFailedDelay();
 			replyErr(CODE_AUTH + " Invalid user name or password");
-			if (tooManyLoginFailures()) {
-				stop();
-			}
 		}
 	}
 

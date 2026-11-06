@@ -2,6 +2,26 @@
 
 ## parley-pop3 2.0.0 (unreleased)
 
+### Changed (2026-11-06: users, logins and permissions come from parley-iam)
+
+- **parley-pop3 uses parley-iam and the new parley-net**: the server's user registry (`authenticationProvider`, or
+  `setUserRegistry`; a parley-iam `UserRegistry`) checks every login and answers permission checks.
+  `Pop3Command.READ_PERMISSION` and `WRITE_PERMISSION` are `ParleyPermission`s (`read`, `write`), and
+  `getPermission()` returns one. The `maildrop` setting is a principal attribute.
+- **Logins go through the session's `authenticate`** (parley-mail's `authenticate(user, password)` for USER/PASS,
+  `Pop3SaslAuthenticator` for AUTH). A registry that can't answer gets `-ERR [SYS/TEMP]` for a login or a permission
+  check, never a refusal.
+- **APOP is a `ProofCredential`** checked with parley-net's `ApopVerifier` against the registry's plain text secret
+  (`StoredCredentialType.PLAIN_TEXT`); the greeting's timestamp is sent when
+  `getUserRegistry().supports(ProofCredential.class, PLAIN_TEXT)`.
+- **Failed logins are counted and delayed by parley-net** (POP3's own counting and `loginFailedDelay` calls are
+  gone); a wrong SCRAM proof, a malformed APOP and a user without `read` are counted too.
+- **`Pop3SaslAuthenticator` extends parley-mail's `MailSaslAuthenticator`**; `Pop3RequestProcessor.newSaslAuthenticator()`
+  returns one. `loginVerified(String)` is `loginVerified(Pop3SaslAuthenticator, String)` (SCRAM is verified by the
+  authenticator that ran the exchange). `Pop3Server.getMaildropDirectory` takes a `ParleyPrincipal`.
+- **INBOX `$group` rights** use the registry's `findGroups(ParleyPrincipal)` when it has one (FileUserRegistry,
+  BasicUserRegistry, parley-net-acl-jdbc); parley-iam's `UserRegistry` has no group lookup.
+
 
 ### Changed (2026-11-03: To-Do 15.3)
 
