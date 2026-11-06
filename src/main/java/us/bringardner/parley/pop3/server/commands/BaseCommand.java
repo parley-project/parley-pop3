@@ -7,7 +7,7 @@ import java.util.Set;
 
 import us.bringardner.parley.net.server.AbstractCommand;
 import us.bringardner.parley.net.server.ICommandProcessor;
-import us.bringardner.parley.net.server.IPermission;
+import us.bringardner.parley.iam.ParleyPermission;
 import us.bringardner.parley.net.server.IRequestContext;
 import us.bringardner.parley.pop3.POP3;
 import us.bringardner.parley.pop3.server.Maildrop;
@@ -34,7 +34,7 @@ public abstract class BaseCommand extends AbstractCommand implements Pop3Command
 	}
 
 	@Override
-	public IPermission getPermission() {
+	public ParleyPermission getPermission() {
 		return READ_PERMISSION;
 	}
 

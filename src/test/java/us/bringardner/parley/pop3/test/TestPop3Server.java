@@ -47,15 +47,14 @@ import us.bringardner.parley.net.sasl.ISaslClient;
 import us.bringardner.parley.net.sasl.SaslException;
 import us.bringardner.parley.net.sasl.ScramMechanism;
 import us.bringardner.parley.net.ServerTestSupport;
-import us.bringardner.parley.net.server.FileBasedAcl;
-import us.bringardner.parley.net.server.IAccessControlList;
+import us.bringardner.parley.net.server.FileUserRegistry;
 import us.bringardner.parley.net.server.IServer;
 import us.bringardner.parley.pop3.server.Maildrop;
 import us.bringardner.parley.pop3.server.Pop3Server;
 
 /**
  * End-to-end tests of Pop3Server over real sockets, set up the way BjlNetFtp's
- * TestFtpBaseTestClass sets up FtpServer: a FileBasedAcl from a test resource,
+ * TestFtpBaseTestClass sets up FtpServer: a FileUserRegistry from a test resource,
  * a temp root and a generated key store for TLS.
  */
 public class TestPop3Server {
@@ -72,8 +71,8 @@ public class TestPop3Server {
 		System.setProperty("parley.mail.pop3.keyStoreName", KEYSTORE);
 		System.setProperty("parley.mail.pop3.keyStorePassword", ServerTestSupport.KEYSTORE_PASSWORD);
 		System.setProperty("parley.mail.pop3.keyStoreType", "PKCS12");
-		System.setProperty("parley.mail.pop3." + FileBasedAcl.PROP_FILE_NAME, ACL_FILE);
-		System.setProperty("parley.mail.pop3." + IServer.AUTHENTICATION_PROVIDER_PROPERTY, FileBasedAcl.class.getName());
+		System.setProperty("parley.mail.pop3." + FileUserRegistry.PROP_FILE_NAME, ACL_FILE);
+		System.setProperty("parley.mail.pop3." + IServer.AUTHENTICATION_PROVIDER_PROPERTY, FileUserRegistry.class.getName());
 
 		root = FileSourceFactory.getDefaultFactory().createTempDirectory("pop3test");
 		us.bringardner.parley.mail.store.MailLocks.writeStoreSettings(root, us.bringardner.parley.net.lock.Sharing.OFF);
@@ -545,8 +544,7 @@ public class TestPop3Server {
 			assertFalse(String.join(" ", c.multi()).contains("SCRAM"));
 			assertTrue(c.cmd("AUTH SCRAM-SHA-256").startsWith("-ERR"));
 		}
-		IAccessControlList old = server.getAccessControl();
-		server.setAccessControl(scramAcl());
+		server.setUserRegistry(scramAcl());
 		try {
 			maildrop("carol");
 			try (Client c = new Client()) {
@@ -578,14 +576,14 @@ public class TestPop3Server {
 				c.cmd("QUIT");
 			}
 		} finally {
-			server.setAccessControl(old);
+			// back to the registry made from the test settings
+			server.setUserRegistry(null);
 		}
 	}
 
 	@Test
 	public void testAccessControlUnavailable() throws Exception {
-		IAccessControlList old = server.getAccessControl();
-		server.setAccessControl(downAcl());
+		server.setUserRegistry(downAcl());
 		us.bringardner.parley.core.ILogger.Level level = server.getLogger().getLevel();
 		server.getLogger().setLevel(Level.NONE);
 		try (Client c = new Client()) {
@@ -601,8 +599,74 @@ public class TestPop3Server {
 			assertTrue(reply.startsWith("-ERR [SYS/TEMP]"), reply);
 			c.cmd("QUIT");
 		} finally {
-			server.setAccessControl(old);
+			// back to the registry made from the test settings
+			server.setUserRegistry(null);
 			server.getLogger().setLevel(level);
+		}
+	}
+
+	/** APOP is offered only when the registry keeps plain text secrets; a down registry is a temporary error. */
+	@Test
+	public void testApopAndTheUserRegistry() throws Exception {
+		// every scramAcl user has a hashed password: no plain text secret, no APOP timestamp
+		server.setUserRegistry(scramAcl());
+		try (Client c = new Client()) {
+			assertFalse(Pattern.compile("<[^<>]+>").matcher(c.greeting).find(), c.greeting);
+			assertTrue(c.cmd("APOP carol 0123456789abcdef0123456789abcdef").startsWith("-ERR [AUTH]"));
+		} finally {
+			server.setUserRegistry(null);
+		}
+		us.bringardner.parley.core.ILogger.Level level = server.getLogger().getLevel();
+		server.getLogger().setLevel(Level.NONE);
+		server.setUserRegistry(downAcl());
+		try (Client c = new Client()) {
+			Matcher m = Pattern.compile("<[^<>]+>").matcher(c.greeting);
+			assertTrue(m.find(), c.greeting);
+			for (int i = 0; i < 4; i++) {
+				String reply = c.cmd("APOP tony " + md5(m.group() + "secret"));
+				assertTrue(reply.startsWith("-ERR [SYS/TEMP]"), reply);
+			}
+			c.cmd("QUIT");
+		} finally {
+			server.setUserRegistry(null);
+			server.getLogger().setLevel(level);
+		}
+	}
+
+	/** A permission check the registry can't answer is a temporary error, not "Permission denied". */
+	@Test
+	public void testPermissionUnavailable() throws Exception {
+		maildrop("tony");
+		deliver(server.getMaildropDirectory("tony"), "Subject: t\r\n\r\nx\r\n");
+		us.bringardner.parley.core.ILogger.Level level = server.getLogger().getLevel();
+		try (Client c = new Client()) {
+			c.login("tony", "secret");
+			server.getLogger().setLevel(Level.NONE);
+			server.setUserRegistry(downAcl());
+			String reply = c.cmd("DELE 1");
+			assertTrue(reply.startsWith("-ERR [SYS/TEMP]"), reply);
+			server.setUserRegistry(null);
+			assertTrue(c.cmd("DELE 1").startsWith("+OK"));
+			c.cmd("RSET");
+			c.cmd("QUIT");
+		} finally {
+			server.setUserRegistry(null);
+			server.getLogger().setLevel(level);
+		}
+	}
+
+	/** A wrong SCRAM proof never reaches the registry's password check, but is counted as a failed login. */
+	@Test
+	public void testWrongScramProofIsCounted() throws Exception {
+		server.setUserRegistry(scramAcl());
+		server.setMaxLoginAttempts(2);
+		try (Client c = new Client()) {
+			assertTrue(scram(c, ScramMechanism.SHA_256, "carol", "wrong").startsWith("-ERR [AUTH]"));
+			assertTrue(scram(c, ScramMechanism.SHA_256, "carol", "wrong").startsWith("-ERR [AUTH]"));
+			assertNull(c.readLine(), "closed after 2 failed logins");
+		} finally {
+			server.setMaxLoginAttempts(3);
+			server.setUserRegistry(null);
 		}
 	}
 

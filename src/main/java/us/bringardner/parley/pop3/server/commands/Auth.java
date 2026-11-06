@@ -3,6 +3,7 @@ package us.bringardner.parley.pop3.server.commands;
 import java.io.IOException;
 import java.util.List;
 
+import us.bringardner.parley.iam.AuthenticationResult;
 import us.bringardner.parley.net.sasl.ISaslChannel;
 import us.bringardner.parley.net.sasl.ISaslMechanism;
 import us.bringardner.parley.net.sasl.SaslMechanisms;
@@ -38,7 +39,7 @@ public class Auth extends NoAuthReqBaseCommand {
 	 *         (require TLS before login), so plaintext mechanisms are not filtered here.
 	 */
 	public static List<String> mechanisms(Pop3RequestProcessor processor) {
-		return MECHANISMS.offered(new Pop3SaslAuthenticator(processor), true);
+		return MECHANISMS.offered(processor.newSaslAuthenticator(), true);
 	}
 
 	@Override
@@ -48,7 +49,7 @@ public class Auth extends NoAuthReqBaseCommand {
 			processor.replyMultiLine("Supported mechanisms follow", mechanisms(processor));
 			return;
 		}
-		Pop3SaslAuthenticator authenticator = new Pop3SaslAuthenticator(processor);
+		Pop3SaslAuthenticator authenticator = processor.newSaslAuthenticator();
 		ISaslMechanism mechanism = MECHANISMS.find(name);
 		if (mechanism == null || !MECHANISMS.offered(authenticator, true).contains(mechanism.getName())) {
 			processor.replyErr("Unsupported authentication mechanism");
@@ -78,14 +79,18 @@ public class Auth extends NoAuthReqBaseCommand {
 		case SUCCESS:
 			// PLAIN logged in while checking the password; SCRAM proved the user without one
 			LoginResult ok = authenticator.getLastResult();
-			processor.replyLoginResult(ok != null ? ok : processor.loginVerified(outcome.getUser()));
+			processor.replyLoginResult(ok != null ? ok : processor.loginVerified(authenticator, outcome.getUser()));
 			break;
 		case FAILED:
 			LoginResult result = authenticator.getLastResult();
-			if (result == null && authenticator.isUnavailable()) {
-				result = LoginResult.UNAVAILABLE;
+			if (result == null) {
+				// no password was checked (a wrong SCRAM proof, or the registry couldn't answer):
+				// counted as a refused login unless the registry was down
+				AuthenticationResult failed = authenticator.exchangeFailed("AUTH " + mechanism.getName() + " failed");
+				result = failed.getStatus() == AuthenticationResult.Status.UNAVAILABLE ? LoginResult.UNAVAILABLE
+						: LoginResult.FAILED;
 			}
-			processor.replyLoginResult(result != null ? result : LoginResult.FAILED);
+			processor.replyLoginResult(result);
 			break;
 		case CANCELLED:
 			processor.replyErr("Authentication cancelled");

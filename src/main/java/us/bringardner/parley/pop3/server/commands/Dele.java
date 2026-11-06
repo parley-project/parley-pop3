@@ -1,7 +1,7 @@
 package us.bringardner.parley.pop3.server.commands;
 
 import java.io.IOException;
-import us.bringardner.parley.net.server.IPermission;
+import us.bringardner.parley.iam.ParleyPermission;
 
 import us.bringardner.parley.net.server.IRequestContext;
 import us.bringardner.parley.pop3.server.Pop3RequestProcessor;
@@ -21,7 +21,7 @@ public class Dele extends BaseCommand {
 	}
 
 	@Override
-	public IPermission getPermission() {
+	public ParleyPermission getPermission() {
 		return WRITE_PERMISSION;
 	}
 

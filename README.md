@@ -41,7 +41,7 @@ The design follows parley-ftp:
 | `FtpCommand`, `commands.*` | `Pop3Command`, `commands.*` | One class per command |
 | `FTP` | `POP3` | Protocol constants |
 
-Supported: USER, PASS, APOP, QUIT, STAT, LIST, RETR, DELE, NOOP, RSET, TOP, UIDL (RFC 1939); CAPA and response codes (RFC 2449); STLS (RFC 2595); AUTH PLAIN and SCRAM (RFC 5034); UTF8 (RFC 6856). SCRAM-SHA-256 and SCRAM-SHA-1 (RFC 5802, 7677) are offered when the access control list keeps SCRAM credentials for every user (parley-net's `FileBasedAcl --scram`, or parley-net-acl-jdbc).
+Supported: USER, PASS, APOP, QUIT, STAT, LIST, RETR, DELE, NOOP, RSET, TOP, UIDL (RFC 1939); CAPA and response codes (RFC 2449); STLS (RFC 2595); AUTH PLAIN and SCRAM (RFC 5034); UTF8 (RFC 6856). SCRAM-SHA-256 and SCRAM-SHA-1 (RFC 5802, 7677) are offered when the server's user registry keeps SCRAM credentials for every user (parley-net's `FileUserRegistry --scram`, or parley-net-acl-jdbc).
 
 ```java
 Pop3Server server = new Pop3Server();          // port 110
@@ -64,12 +64,13 @@ process is an application's job (see parley-mail's README; parley-mail-admin is 
 
 ### Users and maildrops
 
-- **Users** come from the access control list, set up as for FtpServer with the `parley.mail.pop3.authenticationProvider` property (for example `us.bringardner.parley.net.server.FileBasedAcl` with `parley.mail.pop3.userFile`). See `MailTestAcl.txt` in parley-mail's test resources (the user file every mail protocol's tests share).
-- **Permissions:** READ is needed to log in and read mail; WRITE to delete it.
-- **INBOX rights (RFC 4314):** the INBOX's access control list, shared with IMAP (parley-mail's `.imap-acl`), applies too, limited by READ and WRITE: RETR and TOP need `r`, DELE needs `t` and `e`, and RETR marks a message `\Seen` only with `s`. An INBOX without a list gives its owner every right, so nothing changes until an ACL is set, except that a user without WRITE (read only everywhere) no longer has RETR mark messages `\Seen`. The rights are read at login.
-- **Maildrops:** each user's maildrop is a directory under the root, named by the principal's `maildrop` parameter (default: the user name). Several users can share one maildrop.
+- **Users** come from the server's parley-iam user registry: one given with `setUserRegistry` (parley-mail reads `parley.mail.users` into one; an application can give several servers the same one), or the class the `parley.mail.pop3.authenticationProvider` property names (for example `us.bringardner.parley.net.server.FileUserRegistry` with `parley.mail.pop3.userFile`). See `MailTestAcl.txt` in parley-mail's test resources (the user file every mail protocol's tests share). There are no built-in users: with no registry a login is a configuration error (the server warns at start).
+- **Logins** (USER/PASS, APOP, AUTH) go through the session's `authenticate`, which gives AUTHENTICATED, REFUSED or UNAVAILABLE. A registry that can't answer now (its database is down, say) gets `-ERR [SYS/TEMP]` (RFC 3206), never "wrong password", and isn't counted as a failed login.
+- **Permissions** are answered by the registry: `read` is needed to log in and read mail; `write` to delete it (names ignore case, so a user file's `READ|WRITE` still works). A check the registry can't answer gets `-ERR [SYS/TEMP]`, not "Permission denied".
+- **INBOX rights (RFC 4314):** the INBOX's access control list, shared with IMAP (parley-mail's `.imap-acl`), applies too, limited by `read` and `write`. `$group` entries match the groups the registry's `findGroups` gives (FileUserRegistry's `groups=` attribute, say), when the registry has that method: RETR and TOP need `r`, DELE needs `t` and `e`, and RETR marks a message `\Seen` only with `s`. An INBOX without a list gives its owner every right, so nothing changes until an ACL is set, except that a user without WRITE (read only everywhere) no longer has RETR mark messages `\Seen`. The rights are read at login.
+- **Maildrops:** each user's maildrop is a directory under the root, named by the principal's `maildrop` attribute (default: the user name). Several users can share one maildrop.
 - **Messages** are files in the maildrop, in name order. Names starting with "." are ignored: delivery (parley-mail's `MailStore.deliver`) writes a hidden temp file and renames it, so a session never sees a message half written.
-- **APOP** is checked by the access control list (`verifyApop`), so the password never leaves it; the greeting carries the APOP timestamp only when the list can check APOP (`supportsApop`, at least one plain text password); it needs the user's password stored in plain text there; users with `{PBKDF2}` hashes use USER/PASS or AUTH PLAIN.
+- **APOP** is a parley-iam `ProofCredential` checked with parley-net's `ApopVerifier` against the user's plain text secret (`StoredCredentialType.PLAIN_TEXT`) from the registry. The greeting carries the APOP timestamp only when the registry supports it (`supports(ProofCredential.class, PLAIN_TEXT)`; FileUserRegistry: at least one plain text password). It needs the user's password stored in plain text; users with `{PBKDF2}` hashes use USER/PASS or AUTH.
 
 ### Configuration
 
@@ -86,7 +87,7 @@ A server reads its settings from its own configuration (given by whoever made it
 | `parley.mail.pop3.requireTls` | false | Refuse USER, PASS, APOP and AUTH until STLS (or implicit TLS). `setRequireTls()` |
 | `parley.mail.pop3.utf8Downgrade` | `surrogate` | What a client that didn't send UTF8 gets for a message with UTF-8 headers: the RFC 6858 surrogate, or `reject` (`-ERR [UTF8]`). `setUtf8Downgrade()` |
 | `parley.mail.pop3.keyStoreName`, `parley.mail.pop3.keyStorePassword`, `parley.mail.pop3.keyStoreType` | none | Key store for STLS and implicit TLS. STLS is offered only when one is configured. |
-| `parley.mail.pop3.*` | | The listener's own settings use its prefix: the key store, the limits of parley-core's `AbstractCoreServer` (`maxConnections`, `maxLoginAttempts`, ...) and the access control list (`authenticationProvider`, `userFile`). A server with implicit TLS uses `parley.mail.pop3s`. |
+| `parley.mail.pop3.*` | | The listener's own settings use its prefix: the key store, the limits of parley-core's `AbstractCoreServer` (`maxConnections`, `maxLoginAttempts`, ...) and the user registry (`authenticationProvider`, `userFile`). A server with implicit TLS uses `parley.mail.pop3s`. |
 
 ### Behaviour notes
 
@@ -96,7 +97,7 @@ A server reads its settings from its own configuration (given by whoever made it
 - **The shared store:** the maildrop is the INBOX of the user's parley-mail store, the mailbox IMAP serves. QUIT expunges the deleted messages from it (IMAP sessions are told at once), and RETR sets `\Seen`, so IMAP shows mail read over POP3 as read (TOP doesn't).
 - **Sizes** in STAT and LIST are exact: the octets RETR sends, with CRLF line ends, before byte-stuffing. They are computed when the maildrop is opened.
 - **Streaming:** RETR and TOP stream from the maildrop, so messages can be of any size.
-- **Failed logins** wait `parley.mail.pop3.loginFailureDelay` ms. The connection is closed after 3 failures. Unknown users get the same replies as wrong passwords.
+- **Failed logins** are counted per connection by parley-net, and each is answered after `parley.mail.pop3.loginFailureDelay` ms. After `maxLoginAttempts` (3) the connection is closed after the reply. A wrong SCRAM proof and a user without `read` count too. Unknown users get the same replies as wrong passwords.
 - **Several servers on one store**: give them a store whose settings say `sharing=host` or `cluster` (see parley-mail). The maildrop lock is a lock in the store's lock domain, so it reaches the other servers; at QUIT, messages are deleted only while the session still holds it.
 
 ### Internationalized mail (RFC 6856)
@@ -109,5 +110,5 @@ A server reads its settings from its own configuration (given by whoever made it
   - any other field that isn't ASCII (Message-ID, Received, ...) is removed.
 
   Bodies are not changed and are still streamed from the file. LIST reports the surrogate's exact size, TOP counts the surrogate's lines, and UIDs are the same in both modes. The stored message is never modified.
-- **Logins** may use UTF-8 user names and passwords (USER, PASS, APOP and AUTH PLAIN). They are prepared with SASLprep (RFC 4013), so composed and decomposed forms match. Invalid UTF-8 and prohibited characters fail the login. Passwords in the access list should be stored in their prepared (NFC) form.
+- **Logins** may use UTF-8 user names and passwords (USER, PASS, APOP and AUTH PLAIN). They are prepared with SASLprep (RFC 4013), so composed and decomposed forms match. Invalid UTF-8 and prohibited characters fail the login. Passwords in the user registry should be stored in their prepared (NFC) form (APOP uses the stored secret as it is).
 - **Not implemented:** the optional LANG command (RFC 6856 section 3).
