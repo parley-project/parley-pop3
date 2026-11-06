@@ -9,7 +9,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import us.bringardner.parley.files.FileSource;
 import us.bringardner.parley.net.IProcessor;
 import us.bringardner.parley.net.IProcessorFactory;
-import us.bringardner.parley.net.server.IPrincipal;
+import us.bringardner.parley.iam.ParleyPrincipal;
 import us.bringardner.parley.pop3.POP3;
 
 /**
@@ -24,15 +24,18 @@ import us.bringardner.parley.pop3.POP3;
  * Each user's maildrop is a directory under the maildrop root, a
  * {@link FileSource}, holding one file per message (see {@link Maildrop}).
  * <p>
- * Users come from the access control list, configured as for FtpServer with the
- * {@code parley.mail.pop3.authenticationProvider} property (e.g. FileBasedAcl). A user needs the
- * READ permission to open a maildrop and WRITE to delete messages. The
- * principal parameter {@code maildrop} names the user's maildrop directory
- * (relative to the root); the default is the user name.
+ * Users come from the server's parley-iam user registry: one given with {@code setUserRegistry}
+ * (parley-mail reads {@code parley.mail.users} into one), or the class the
+ * {@code parley.mail.pop3.authenticationProvider} property names (parley-net's FileUserRegistry,
+ * say). With none, a login is a configuration error, not a refused login. The registry decides
+ * the permissions: a user needs read to open a maildrop and write to delete messages. The
+ * principal attribute {@code maildrop} names the user's maildrop directory (relative to the
+ * root); the default is the user name. Failed logins are counted and answered late by parley-net
+ * (loginFailureDelay, maxLoginAttempts).
  * <p>
  * A server reads its settings from its own configuration (the system properties for a server made
  * by code, see parley-core's {@code BaseObject.setConfiguration}), or they are set with the matching
- * setter. A server's own settings (port, key store, limits, access control, autologout, requireTls,
+ * setter. A server's own settings (port, key store, limits, user registry, autologout, requireTls,
  * utf8Downgrade) are read with its property prefix: {@value #POP3_PREFIX}, or {@value #POP3S_PREFIX}
  * for a server with implicit TLS (parley.mail.pop3s.autologout, say).
  * <table>
@@ -193,7 +196,7 @@ public class Pop3Server extends AbstractMailServer implements POP3 {
 		setRequireTls(getBooleanProperty(propertyName(REQUIRE_TLS), false));
 		initMaildropRoot(FILE_SOURCE_PROP, null, ROOT_PROP, null, DEFAULT_ROOT, DEFAULT_ROOT_WINDOWS);
 
-		// trigger access control initialization (authenticationProvider property)
+		// make the user registry now (authenticationProvider property), or warn that there is none
 		warnIfNoAccessControl();
 	}
 
@@ -201,11 +204,11 @@ public class Pop3Server extends AbstractMailServer implements POP3 {
 
 	/**
 	 * The maildrop directory of a user: the principal's {@code maildrop}
-	 * parameter, or the user name, resolved inside the maildrop root (".." can't
+	 * attribute, or the user name, resolved inside the maildrop root (".." can't
 	 * leave the root).
 	 */
-	public FileSource getMaildropDirectory(IPrincipal principal) throws IOException {
-		Object param = principal.getParameter(Pop3RequestProcessor.PARAMETER_MAILDROP);
+	public FileSource getMaildropDirectory(ParleyPrincipal principal) throws IOException {
+		Object param = principal.getAttribute(Pop3RequestProcessor.PARAMETER_MAILDROP);
 		return getMaildropDirectory(param != null ? param.toString() : principal.getName());
 	}
 
