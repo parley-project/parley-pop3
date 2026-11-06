@@ -28,7 +28,7 @@ import us.bringardner.parley.net.lock.LockOptions;
 import us.bringardner.parley.net.lock.Locks;
 import us.bringardner.parley.net.lock.NamedLock;
 import us.bringardner.parley.net.lock.Sharing;
-import us.bringardner.parley.net.server.FileBasedAcl;
+import us.bringardner.parley.net.server.FileUserRegistry;
 import us.bringardner.parley.net.server.IServer;
 import us.bringardner.parley.pop3.server.Pop3Server;
 
@@ -42,8 +42,8 @@ public class TestSharedMaildrop {
 
 	@BeforeAll
 	public static void start() throws Exception {
-		System.setProperty("parley.mail.pop3." + FileBasedAcl.PROP_FILE_NAME, ACL_FILE);
-		System.setProperty("parley.mail.pop3." + IServer.AUTHENTICATION_PROVIDER_PROPERTY, FileBasedAcl.class.getName());
+		System.setProperty("parley.mail.pop3." + FileUserRegistry.PROP_FILE_NAME, ACL_FILE);
+		System.setProperty("parley.mail.pop3." + IServer.AUTHENTICATION_PROVIDER_PROPERTY, FileUserRegistry.class.getName());
 		root = FileSourceFactory.getDefaultFactory().createTempDirectory("pop3shared");
 		MailLocks.writeStoreSettings(root, Sharing.CLUSTER); // the store's own settings
 		server = new Pop3Server(0, Pop3Server.POP3_NAME, false);
