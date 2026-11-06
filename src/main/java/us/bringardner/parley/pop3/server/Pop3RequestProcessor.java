@@ -478,44 +478,13 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 	}
 
 	/**
-	 * The names of the user's groups, for {@code $group} entries in the mailbox ACL. parley-iam's
-	 * {@link UserRegistry} has no group lookup; the registries that know groups (parley-net's
-	 * FileUserRegistry, parley-iam's BasicUserRegistry, parley-net-acl-jdbc's registry) each have a
-	 * public {@code findGroups(ParleyPrincipal)}, which is used when the server's registry has one.
-	 * Otherwise the user is in no groups.
+	 * The names of the user's groups, for {@code $group} entries in the mailbox ACL: parley-mail's
+	 * {@code findGroupNames} (the user registry's {@code findGroups}).
 	 *
 	 * @throws UserRegistryUnavailableException when the user registry can't answer now
 	 */
 	private java.util.Collection<String> groupNames(ParleyPrincipal p) throws UserRegistryUnavailableException {
-		java.util.List<String> ret = new java.util.ArrayList<>();
-		UserRegistry registry = getServer().getUserRegistry();
-		if (registry == null) {
-			return ret;
-		}
-		Object groups;
-		try {
-			java.lang.reflect.Method m = registry.getClass().getMethod("findGroups", ParleyPrincipal.class);
-			groups = m.invoke(registry, p);
-		} catch (NoSuchMethodException | IllegalAccessException | RuntimeException e) {
-			return ret;
-		} catch (java.lang.reflect.InvocationTargetException e) {
-			Throwable cause = e.getCause();
-			if (cause instanceof UserRegistryUnavailableException) {
-				throw (UserRegistryUnavailableException) cause;
-			}
-			if (cause instanceof RuntimeException) {
-				throw (RuntimeException) cause;
-			}
-			throw new UserRegistryUnavailableException("findGroups failed: " + cause);
-		}
-		if (groups instanceof Iterable) {
-			for (Object g : (Iterable<?>) groups) {
-				if (g instanceof ParleyPrincipal) {
-					ret.add(((ParleyPrincipal) g).getName());
-				}
-			}
-		}
-		return ret;
+		return getPop3Server().findGroupNames(p);
 	}
 
 	/**
