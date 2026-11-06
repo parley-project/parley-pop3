@@ -19,8 +19,8 @@
 - **`Pop3SaslAuthenticator` extends parley-mail's `MailSaslAuthenticator`**; `Pop3RequestProcessor.newSaslAuthenticator()`
   returns one. `loginVerified(String)` is `loginVerified(Pop3SaslAuthenticator, String)` (SCRAM is verified by the
   authenticator that ran the exchange). `Pop3Server.getMaildropDirectory` takes a `ParleyPrincipal`.
-- **INBOX `$group` rights** use the registry's `findGroups(ParleyPrincipal)` when it has one (FileUserRegistry,
-  BasicUserRegistry, parley-net-acl-jdbc); parley-iam's `UserRegistry` has no group lookup.
+- **INBOX `$group` rights** use the user registry's `findGroups(ParleyPrincipal)`, through parley-mail's
+  `AbstractMailServer.findGroupNames`.
 
 
 ### Changed (2026-11-03: To-Do 15.3)
