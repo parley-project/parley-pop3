@@ -33,6 +33,11 @@ public abstract class BaseCommand extends AbstractCommand implements Pop3Command
 		execute((Pop3RequestProcessor) processor, context);
 	}
 
+	/**
+	 * Reading mail needs the read permission: the default here. A command that changes mail
+	 * returns the write permission; one that does neither needs no permission
+	 * (requiresAuthorization() is false).
+	 */
 	@Override
 	public ParleyPermission getPermission() {
 		return READ_PERMISSION;

@@ -811,6 +811,9 @@ public class TestPop3Server {
 			assertEquals("+OK Logged in, but nopop doesn't have the read permission (needed for reading mail)", reply);
 			assertEquals("-ERR Permission denied for STAT: nopop doesn't have the read permission", c.cmd("STAT"));
 			assertEquals("-ERR Permission denied for RETR: nopop doesn't have the read permission", c.cmd("RETR 1"));
+			// only commands that read need read; DELE needs write
+			assertTrue(c.cmd("NOOP").startsWith("+OK"));
+			assertTrue(c.cmd("RSET").startsWith("+OK"));
 			assertTrue(c.cmd("QUIT").startsWith("+OK"));
 		}
 	}
