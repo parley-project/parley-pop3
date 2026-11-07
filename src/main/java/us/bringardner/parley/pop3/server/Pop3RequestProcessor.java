@@ -175,6 +175,16 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 		reply(REPLY_ERR, CODE_SYS_TEMP + " " + command.getName() + " can't be checked now, try again later");
 	}
 
+	/**
+	 * A command failed with an unexpected error (logged by the command loop): -ERR with RFC 3206's
+	 * [SYS/TEMP], a problem on the server that may go away, instead of the loop's 500, which isn't
+	 * a POP3 reply. The session goes on.
+	 */
+	@Override
+	protected void replyCommandFailed(String command) throws IOException {
+		reply(REPLY_ERR, CODE_SYS_TEMP + " " + (command == null ? "The command" : sanitize(command)) + " failed, try again later");
+	}
+
 	/** Echo client text in a reply without control characters. */
 	static String sanitize(String text) {
 		StringBuilder sb = new StringBuilder();
