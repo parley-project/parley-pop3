@@ -276,6 +276,30 @@ public class TestPop3Server {
 		}
 	}
 
+	/** A command that fails with an unexpected error gets -ERR [SYS/TEMP], not the loop's 500, and the session goes on */
+	@Test
+	public void testFailedCommandIsSysTemp() throws Exception {
+		us.bringardner.parley.pop3.server.Pop3CommandFactory.addCommand(new us.bringardner.parley.pop3.server.commands.NoAuthReqBaseCommand("XFAIL") {
+			private static final long serialVersionUID = 1L;
+
+			@Override
+			public java.util.Set<us.bringardner.parley.pop3.server.Pop3RequestProcessor.State> getValidStates() {
+				return BEFORE_UPDATE;
+			}
+
+			@Override
+			public void execute(us.bringardner.parley.pop3.server.Pop3RequestProcessor processor,
+					us.bringardner.parley.net.server.IRequestContext context) throws IOException {
+				throw new IllegalStateException("a bug");
+			}
+		});
+		try (Client c = new Client()) {
+			assertEquals("-ERR [SYS/TEMP] XFAIL failed, try again later", c.cmd("XFAIL"));
+			assertTrue(c.cmd("CAPA").startsWith("+OK"), "the session goes on");
+			c.multi();
+		}
+	}
+
 	private static final String RAW_LF = "From: someone@example.com\nSubject: lf only\n\n.starts with a dot\nline two\n..two dots\n.\nlast line without newline";
 
 	@Test
