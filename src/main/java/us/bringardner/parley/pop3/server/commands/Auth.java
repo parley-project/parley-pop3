@@ -7,7 +7,6 @@ import us.bringardner.parley.iam.AuthenticationResult;
 import us.bringardner.parley.net.sasl.ISaslChannel;
 import us.bringardner.parley.net.sasl.ISaslMechanism;
 import us.bringardner.parley.net.sasl.SaslMechanisms;
-import us.bringardner.parley.net.sasl.SaslOutcome;
 import us.bringardner.parley.net.sasl.SaslServerDriver;
 import us.bringardner.parley.net.server.IRequestContext;
 import us.bringardner.parley.pop3.server.Pop3RequestProcessor;
@@ -16,8 +15,8 @@ import us.bringardner.parley.pop3.server.Pop3SaslAuthenticator;
 
 
 /**
- * AUTH mechanism [initial-response] (RFC 5034). The exchange itself is run by
- * {@link SaslServerDriver}; this class supplies the POP3 parts: "+ " continuations, "*" to
+ * AUTH mechanism [initial-response] (RFC 5034). The exchange itself is run by the authenticator
+ * (parley-net's {@link SaslServerDriver} underneath); this class supplies the POP3 parts: "+ " continuations, "*" to
  * cancel, and the replies. Which mechanisms are offered is decided by
  * {@link Pop3SaslAuthenticator} (PLAIN, RFC 4616).
  */
@@ -64,7 +63,7 @@ public class Auth extends NoAuthReqBaseCommand {
 			processor.replyErr("Authentication cancelled");
 			return;
 		}
-		SaslOutcome outcome = SaslServerDriver.authenticate(mechanism, authenticator, initial, new ISaslChannel() {
+		AuthenticationResult result = authenticator.authenticate(mechanism, initial, new ISaslChannel() {
 			@Override
 			public void sendChallenge(String base64) throws IOException {
 				processor.reply(CONTINUE + base64);
@@ -75,23 +74,12 @@ public class Auth extends NoAuthReqBaseCommand {
 				return processor.readLine();
 			}
 		});
-		switch (outcome.getStatus()) {
-		case SUCCESS:
-			// PLAIN logged in while checking the password; SCRAM proved the user without one
-			LoginResult ok = authenticator.getLastResult();
-			processor.replyLoginResult(ok != null ? ok : processor.loginVerified(authenticator, outcome.getUser()));
-			break;
-		case FAILED:
-			LoginResult result = authenticator.getLastResult();
-			if (result == null) {
-				// no password was checked (a wrong SCRAM proof, or the registry couldn't answer):
-				// counted as a refused login unless the registry was down
-				AuthenticationResult failed = authenticator.exchangeFailed("AUTH " + mechanism.getName() + " failed");
-				result = failed.getStatus() == AuthenticationResult.Status.UNAVAILABLE ? LoginResult.UNAVAILABLE
-						: LoginResult.FAILED;
-			}
-			processor.replyLoginResult(result);
-			break;
+		if (result != null) {
+			// a login was checked (and a refusal already counted): open the maildrop when it was good
+			processor.replyLoginResult(processor.afterAuthentication(result, "AUTH " + mechanism.getName()));
+			return;
+		}
+		switch (authenticator.getOutcome().getStatus()) {
 		case CANCELLED:
 			processor.replyErr("Authentication cancelled");
 			break;
