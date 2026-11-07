@@ -3,9 +3,9 @@ package us.bringardner.parley.pop3.server;
 import java.io.IOException;
 import java.util.Set;
 
-import us.bringardner.parley.iam.BasicParleyPermission;
 import us.bringardner.parley.iam.ParleyPermission;
-import us.bringardner.parley.iam.StandardPermissions;
+import us.bringardner.parley.iam.permission.BasicParleyPermission;
+import us.bringardner.parley.iam.permission.StandardPermissions;
 import us.bringardner.parley.net.server.IRequestContext;
 import us.bringardner.parley.net.server.IStatefulCommand;
 
