@@ -8,7 +8,6 @@ import java.security.SecureRandom;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.locks.ReentrantLock;
 
 import us.bringardner.parley.core.ILogger;
 import us.bringardner.parley.files.FileSource;
@@ -76,12 +75,6 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 	/** The maildrop's lock in the store's lock domain (reaches other servers), or null. */
 	private us.bringardner.parley.net.lock.NamedLock maildropLock;
 	private String lastError;
-
-	/**
-	 * Serializes replies. A lock, not synchronized, as in FtpRequestProcessor: a
-	 * reply can block on a slow client.
-	 */
-	private final ReentrantLock replyLock = new ReentrantLock();
 
 	public Pop3RequestProcessor() {
 		super();
@@ -190,11 +183,12 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 
 	@Override
 	public void reply(String text) throws IOException {
-		replyLock.lock();
+		java.util.concurrent.locks.ReentrantLock outputLock = getOutputLock();
+		outputLock.lock();
 		try {
 			super.reply(text);
 		} finally {
-			replyLock.unlock();
+			outputLock.unlock();
 		}
 	}
 
@@ -217,7 +211,8 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 	 * terminating ".", sent with one flush.
 	 */
 	public void replyMultiLine(String status, List<String> lines) throws IOException {
-		replyLock.lock();
+		java.util.concurrent.locks.ReentrantLock outputLock = getOutputLock();
+		outputLock.lock();
 		try {
 			IConnection con = getConnection();
 			con.writeLine(OK + " " + status);
@@ -227,7 +222,7 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 			con.writeLine(TERMINATOR);
 			con.flush();
 		} finally {
-			replyLock.unlock();
+			outputLock.unlock();
 		}
 	}
 
@@ -237,7 +232,8 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 	 * and TOP, so a message of any size is streamed from the maildrop.
 	 */
 	public void replyContent(String status, ContentWriter body) throws IOException {
-		replyLock.lock();
+		java.util.concurrent.locks.ReentrantLock outputLock = getOutputLock();
+		outputLock.lock();
 		try {
 			IConnection con = getConnection();
 			con.writeLine(OK + " " + status);
@@ -257,7 +253,7 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 				body.write(out);
 			}
 		} finally {
-			replyLock.unlock();
+			outputLock.unlock();
 		}
 	}
 
