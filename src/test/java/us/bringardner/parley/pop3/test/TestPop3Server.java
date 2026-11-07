@@ -568,7 +568,9 @@ public class TestPop3Server {
 				assertTrue(scram(c, ScramMechanism.SHA_256, "nobody", "carolpw").startsWith("-ERR"));
 			}
 			try (Client c = new Client()) {
-				assertTrue(scram(c, ScramMechanism.SHA_256, "noread", "pw").startsWith("-ERR"), "needs READ");
+				String reply = scram(c, ScramMechanism.SHA_256, "noread", "pw");
+				assertTrue(reply.startsWith("+OK Logged in, but noread doesn't have the read permission"), reply);
+				assertTrue(c.cmd("STAT").startsWith("-ERR Permission denied for STAT: noread doesn't have the read permission"));
 			}
 			try (Client c = new Client()) {
 				// the password still works with PLAIN
@@ -803,7 +805,16 @@ public class TestPop3Server {
 		}
 		try (Client c = new Client()) {
 			c.cmd("USER nopop");
-			assertTrue(c.cmd("PASS secret").startsWith("-ERR [AUTH]"), "no READ permission: no POP access");
+			// the password is right, so the login stands; the reply says what's missing, and
+			// every command that reads mail is refused saying why
+			String reply = c.cmd("PASS secret");
+			assertEquals("+OK Logged in, but nopop doesn't have the read permission", reply);
+			assertEquals("-ERR Permission denied for STAT: nopop doesn't have the read permission", c.cmd("STAT"));
+			assertEquals("-ERR Permission denied for RETR: nopop doesn't have the read permission", c.cmd("RETR 1"));
+			// only commands that read need read; DELE needs write
+			assertTrue(c.cmd("NOOP").startsWith("+OK"));
+			assertTrue(c.cmd("RSET").startsWith("+OK"));
+			assertTrue(c.cmd("QUIT").startsWith("+OK"));
 		}
 	}
 
