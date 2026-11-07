@@ -157,7 +157,7 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 				return;
 			}
 			if (allowed.getStatus() != AuthorizationResult.Status.ALLOWED) {
-				replyNotAuthorized(cmd);
+				replyNotAuthorized(cmd, reportMissingPermission(cmd.getName(), cmd.getPermission()));
 				return;
 			}
 		}
@@ -165,9 +165,8 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 	}
 
 	@Override
-	protected void replyNotAuthorized(ICommand command) throws IOException {
-		reply(REPLY_ERR, "Permission denied for " + command.getName() + ": "
-				+ permissionMissing(command.getName(), command.getPermission(), null));
+	protected void replyNotAuthorized(ICommand command, String reason) throws IOException {
+		reply(REPLY_ERR, "Permission denied for " + command.getName() + ": " + reason);
 	}
 
 	/** The user registry can't answer a permission check now: a temporary error, not "denied" (RFC 3206). */
@@ -408,7 +407,7 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 		// without read the login still stands (the password was right): the user is told, the
 		// administrators are told, and every command that needs read is refused
 		readMissing = read.getStatus() == AuthorizationResult.Status.ALLOWED ? null
-				: permissionMissing("login", Pop3Command.READ_PERMISSION, "reading mail");
+				: reportMissingPermission("login", Pop3Command.READ_PERMISSION);
 		try {
 			Pop3Server server = getPop3Server();
 			FileSource dir = server.getMaildropDirectory(p);

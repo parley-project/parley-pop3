@@ -808,7 +808,7 @@ public class TestPop3Server {
 			// the password is right, so the login stands; the reply says what's missing, and
 			// every command that reads mail is refused saying why
 			String reply = c.cmd("PASS secret");
-			assertEquals("+OK Logged in, but nopop doesn't have the read permission (needed for reading mail)", reply);
+			assertEquals("+OK Logged in, but nopop doesn't have the read permission", reply);
 			assertEquals("-ERR Permission denied for STAT: nopop doesn't have the read permission", c.cmd("STAT"));
 			assertEquals("-ERR Permission denied for RETR: nopop doesn't have the read permission", c.cmd("RETR 1"));
 			// only commands that read need read; DELE needs write
