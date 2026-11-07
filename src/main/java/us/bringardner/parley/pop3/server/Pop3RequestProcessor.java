@@ -4,7 +4,6 @@ import java.io.BufferedOutputStream;
 import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.net.SocketException;
 import java.security.SecureRandom;
 import java.util.HashMap;
 import java.util.List;
@@ -101,24 +100,18 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 		}
 	}
 
+	/** The greeting, with the APOP timestamp only when the user registry keeps plain text secrets (RFC 1939 section 7). */
 	@Override
-	public void run() {
-		try {
-			// the APOP timestamp only when the user registry keeps plain text secrets (RFC 1939 section 7)
-			UserRegistry registry = getServer().getUserRegistry();
-			apopOffered = registry != null && registry.supports(ProofCredential.class, StoredCredentialType.PLAIN_TEXT);
-			reply(REPLY_OK, getServer().getName() + " POP3 server ready" + (apopOffered ? " " + timestamp : ""));
-			super.run();
-		} catch (Throwable e) {
-			if (isTlsHandshakeFailure(e)) {
-				logTlsHandshakeFailure(e);
-			} else if (!(e instanceof SocketException)) {
-				logError("An error occurred in the POP3 session; closing the connection.", e);
-			}
-		} finally {
-			// RFC 1939: without QUIT there is no UPDATE state, so nothing is deleted
-			releaseMaildrop();
-		}
+	protected void sendGreeting() throws IOException {
+		UserRegistry registry = getServer().getUserRegistry();
+		apopOffered = registry != null && registry.supports(ProofCredential.class, StoredCredentialType.PLAIN_TEXT);
+		reply(REPLY_OK, getServer().getName() + " POP3 server ready" + (apopOffered ? " " + timestamp : ""));
+	}
+
+	/** RFC 1939: without QUIT there is no UPDATE state, so nothing is deleted. */
+	@Override
+	protected void sessionEnded() {
+		releaseMaildrop();
 	}
 
 	/**
@@ -126,8 +119,7 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 	 * current state and commands the user lacks permission for get -ERR.
 	 */
 	@Override
-	protected void processLine(String line, Map<String, String> cmdUsed) throws IOException {
-		IRequestContext context = getRequestContextFactory().getRequestContext(line);
+	protected void runRequest(IRequestContext context) throws IOException {
 		String first = context.getFirstToken();
 		if (first == null || first.isEmpty()) {
 			reply(REPLY_ERR, "Empty command");
@@ -142,9 +134,7 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 			return;
 		}
 		Pop3Command cmd = (Pop3Command) command;
-		if (isDebug()) {
-			cmdUsed.put(cmd.getName(), cmd.getName());
-		}
+		recordCommandUsed(cmd.getName());
 		if (!cmd.isValidIn(states.get())) {
 			reply(REPLY_ERR, cmd.getName() + " is not valid in the " + states.get() + " state");
 			return;
@@ -181,7 +171,8 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 	 * a POP3 reply. The session goes on.
 	 */
 	@Override
-	protected void replyCommandFailed(String command) throws IOException {
+	protected void replyCommandFailed(IRequestContext request) throws IOException {
+		String command = request.getFirstToken();
 		reply(REPLY_ERR, CODE_SYS_TEMP + " " + (command == null ? "The command" : sanitize(command)) + " failed, try again later");
 	}
 
