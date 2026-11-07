@@ -66,6 +66,8 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 	private final transient Map<String, Object> tempStorage = new HashMap<>();
 	/** True if the greeting sent an APOP timestamp. */
 	private boolean apopOffered;
+	/** Why the logged-in user can't read mail (the read permission is missing), or null. */
+	private String readMissing;
 	/** The rights on the INBOX, read at login. */
 	private String inboxRights = "";
 	/** The APOP timestamp sent in the greeting (RFC 1939 section 7). */
@@ -164,7 +166,8 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 
 	@Override
 	protected void replyNotAuthorized(ICommand command) throws IOException {
-		reply(REPLY_ERR, "Permission denied for " + command.getName());
+		reply(REPLY_ERR, "Permission denied for " + command.getName() + ": "
+				+ permissionMissing(command.getName(), command.getPermission(), null));
 	}
 
 	/** The user registry can't answer a permission check now: a temporary error, not "denied" (RFC 3206). */
@@ -319,21 +322,6 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 	}
 
 	/**
-	 * Log in a user a SASL mechanism has already proven (AUTH SCRAM-*), with the authenticator
-	 * that ran the exchange: the maildrop is opened as for {@link #login(String, String)}.
-	 *
-	 * @param authenticator the authenticator of the successful exchange
-	 * @param user the user from the exchange's outcome
-	 * @since 2.0.0 (was loginVerified(String) since 1.1.0)
-	 */
-	public LoginResult loginVerified(Pop3SaslAuthenticator authenticator, String user) {
-		if (isLoginBlockedUntilTls()) {
-			return LoginResult.TLS_REQUIRED;
-		}
-		return afterAuthentication(authenticator.verified(user), user);
-	}
-
-	/**
 	 * A SASL authenticator for this session's AUTH command (PLAIN, and SCRAM when the user registry
 	 * can serve it).
 	 *
@@ -360,7 +348,7 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 		String prepared = SaslPrep.prepare(user, false);
 		if (prepared == null || prepared.isEmpty() || digest == null || !apopOffered) {
 			getServer().requireUserRegistry(); // no registry is a mistake in the configuration, not a refusal
-			refuse(apopOffered ? "the user name can't be prepared (SASLprep)" : "APOP wasn't offered");
+			refuseLogin(apopOffered ? "the user name can't be prepared (SASLprep)" : "APOP wasn't offered");
 			return LoginResult.FAILED;
 		}
 		ProofCredential credential = new ProofCredential(prepared, StoredCredentialType.PLAIN_TEXT,
@@ -369,10 +357,15 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 	}
 
 	/**
-	 * After a login was checked: open the maildrop when it was good; a temporary failure when the
-	 * user registry couldn't answer; otherwise FAILED (already counted by the session).
+	 * After a login was checked (USER / PASS, APOP, or a whole AUTH exchange): open the maildrop
+	 * when it was good; a temporary failure when the user registry couldn't answer; otherwise
+	 * FAILED (already counted by the session).
+	 *
+	 * @param result how the login ended
+	 * @param user who, or which command, for the log
+	 * @since 2.0.0
 	 */
-	LoginResult afterAuthentication(AuthenticationResult result, String user) {
+	public LoginResult afterAuthentication(AuthenticationResult result, String user) {
 		if (result == null) {
 			return LoginResult.FAILED;
 		}
@@ -412,11 +405,10 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 			logError("Can't check the read permission of " + p.getName() + ": " + read.getReason());
 			return LoginResult.UNAVAILABLE;
 		}
-		if (read.getStatus() != AuthorizationResult.Status.ALLOWED) {
-			// no POP access: answered as a failed login, and counted as one
-			refuse(p.getName() + " doesn't hold read");
-			return LoginResult.FAILED;
-		}
+		// without read the login still stands (the password was right): the user is told, the
+		// administrators are told, and every command that needs read is refused
+		readMissing = read.getStatus() == AuthorizationResult.Status.ALLOWED ? null
+				: permissionMissing("login", Pop3Command.READ_PERMISSION, "reading mail");
 		try {
 			Pop3Server server = getPop3Server();
 			FileSource dir = server.getMaildropDirectory(p);
@@ -508,7 +500,12 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 	public void replyLoginResult(LoginResult result) throws IOException {
 		switch (result) {
 		case OK:
-			replyOk("Maildrop has " + maildrop.getMessageCount() + " messages (" + maildrop.getTotalSize() + " octets)");
+			if (readMissing != null) {
+				// logged in, but nothing about the maildrop is told
+				replyOk("Logged in, but " + readMissing);
+			} else {
+				replyOk("Maildrop has " + maildrop.getMessageCount() + " messages (" + maildrop.getTotalSize() + " octets)");
+			}
 			break;
 		case IN_USE:
 			replyErr(CODE_IN_USE + " The maildrop is already in use");
