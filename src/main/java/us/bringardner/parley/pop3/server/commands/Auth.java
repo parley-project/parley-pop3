@@ -26,8 +26,8 @@ public class Auth extends NoAuthReqBaseCommand {
 
 	public static final String PLAIN = "PLAIN";
 
-	/** Every mechanism known; the authenticator limits what is offered. CRAM-MD5 is never offered here. */
-	private static final SaslMechanisms MECHANISMS = SaslMechanisms.standard("pop3");
+	/** The server mechanisms Parley has; the authenticator limits what is offered. */
+	private static final SaslMechanisms MECHANISMS = SaslMechanisms.standard();
 
 	public Auth() {
 		super(AUTH);
