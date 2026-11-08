@@ -67,7 +67,7 @@ public class TestPop3Server {
 
 	@BeforeAll
 	public static void startServer() throws Exception {
-		ServerTestSupport.writeKeystore(new File(KEYSTORE));
+		ServerTestSupport.writeKeystore(FileSource.of(new File(KEYSTORE)));
 		System.setProperty("parley.mail.pop3.keyStoreName", KEYSTORE);
 		System.setProperty("parley.mail.pop3.keyStorePassword", ServerTestSupport.KEYSTORE_PASSWORD);
 		System.setProperty("parley.mail.pop3.keyStoreType", "PKCS12");
