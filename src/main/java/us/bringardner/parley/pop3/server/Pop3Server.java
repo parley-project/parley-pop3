@@ -113,7 +113,6 @@ public class Pop3Server extends AbstractMailServer implements POP3 {
 	public Pop3Server(int port, String name, boolean secure) {
 		super(port, name, secure ? POP3S_PREFIX : POP3_PREFIX, secure);
 		initMe();
-		finishInit();
 	}
 
 	@Override
@@ -187,7 +186,7 @@ public class Pop3Server extends AbstractMailServer implements POP3 {
 			@Override
 			public IProcessor getProcessor() {
 				Pop3RequestProcessor ret = new Pop3RequestProcessor();
-				ret.getLogger().setLevel(Pop3Server.this.getLogger().getLevel());
+				ret.setLogLevel(Pop3Server.this.getLogLevel());
 				return ret;
 			}
 		});
