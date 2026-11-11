@@ -27,6 +27,8 @@ public class Quit extends NoAuthReqBaseCommand {
 	@Override
 	public void execute(Pop3RequestProcessor processor, IRequestContext context) throws IOException {
 		String name = processor.getServer().getName();
+		// for the server's "Disconnected" line
+		processor.setCloseReason(us.bringardner.parley.net.server.SessionLog.REASON_CLIENT_QUIT);
 		try {
 			if (processor.getState() == Pop3RequestProcessor.State.TRANSACTION) {
 				int remaining = processor.getMaildrop().getMessageCount();
