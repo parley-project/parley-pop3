@@ -38,7 +38,7 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
-import us.bringardner.parley.core.ILogger.Level;
+import us.bringardner.parley.core.LogLevel;
 import us.bringardner.parley.files.FileSource;
 import us.bringardner.parley.files.FileSourceFactory;
 import us.bringardner.parley.mail.Address;
@@ -79,7 +79,7 @@ public class TestPop3Server {
 		server = new Pop3Server(0, Pop3Server.POP3_NAME, false);
 		server.setMaildropRoot(root);
 		server.setLoginFailureDelay(0);
-		server.getLogger().setLevel(Level.ERROR);
+		server.setLogLevel(LogLevel.ERROR);
 		server.startAndWait(10000);
 		port = server.getLocalPort();
 	}
@@ -610,8 +610,8 @@ public class TestPop3Server {
 	@Test
 	public void testAccessControlUnavailable() throws Exception {
 		server.setUserRegistry(downAcl());
-		us.bringardner.parley.core.ILogger.Level level = server.getLogger().getLevel();
-		server.getLogger().setLevel(Level.NONE);
+		us.bringardner.parley.core.LogLevel level = server.getLogLevel();
+		server.setLogLevel(LogLevel.NONE);
 		try (Client c = new Client()) {
 			// never counted as a failed login: the connection stays open however many times
 			for (int i = 0; i < 6; i++) {
@@ -627,7 +627,7 @@ public class TestPop3Server {
 		} finally {
 			// back to the registry made from the test settings
 			server.setUserRegistry(null);
-			server.getLogger().setLevel(level);
+			server.setLogLevel(level);
 		}
 	}
 
@@ -642,8 +642,8 @@ public class TestPop3Server {
 		} finally {
 			server.setUserRegistry(null);
 		}
-		us.bringardner.parley.core.ILogger.Level level = server.getLogger().getLevel();
-		server.getLogger().setLevel(Level.NONE);
+		us.bringardner.parley.core.LogLevel level = server.getLogLevel();
+		server.setLogLevel(LogLevel.NONE);
 		server.setUserRegistry(downAcl());
 		try (Client c = new Client()) {
 			Matcher m = Pattern.compile("<[^<>]+>").matcher(c.greeting);
@@ -655,7 +655,7 @@ public class TestPop3Server {
 			c.cmd("QUIT");
 		} finally {
 			server.setUserRegistry(null);
-			server.getLogger().setLevel(level);
+			server.setLogLevel(level);
 		}
 	}
 
@@ -664,10 +664,10 @@ public class TestPop3Server {
 	public void testPermissionUnavailable() throws Exception {
 		maildrop("tony");
 		deliver(server.getMaildropDirectory("tony"), "Subject: t\r\n\r\nx\r\n");
-		us.bringardner.parley.core.ILogger.Level level = server.getLogger().getLevel();
+		us.bringardner.parley.core.LogLevel level = server.getLogLevel();
 		try (Client c = new Client()) {
 			c.login("tony", "secret");
-			server.getLogger().setLevel(Level.NONE);
+			server.setLogLevel(LogLevel.NONE);
 			server.setUserRegistry(downAcl());
 			String reply = c.cmd("DELE 1");
 			assertTrue(reply.startsWith("-ERR [SYS/TEMP]"), reply);
@@ -677,7 +677,7 @@ public class TestPop3Server {
 			c.cmd("QUIT");
 		} finally {
 			server.setUserRegistry(null);
-			server.getLogger().setLevel(level);
+			server.setLogLevel(level);
 		}
 	}
 
