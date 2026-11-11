@@ -2,6 +2,12 @@
 
 ## parley-pop3 2.0.0 (unreleased)
 
+### Changed (2026-11-10: logging through System.Logger, To-Do 19.5)
+
+- **Logging through `System.Logger`** (parley-core): `Pop3RequestProcessor` logs under its class
+  name (no longer `Pop3RequestProcessor`); levels are set per object with `setLogLevel`. `Pop3Server` no longer calls
+  `finishInit()` (removed from parley-mail), so it no longer sets INFO on itself.
+
 ### Changed (2026-11-06: users, logins and permissions come from parley-iam)
 
 - **parley-pop3 uses parley-iam and the new parley-net**: the server's user registry (`authenticationProvider`, or

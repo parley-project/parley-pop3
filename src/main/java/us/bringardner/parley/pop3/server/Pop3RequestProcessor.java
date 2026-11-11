@@ -9,7 +9,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import us.bringardner.parley.core.ILogger;
 import us.bringardner.parley.files.FileSource;
 import us.bringardner.parley.iam.AuthenticationResult;
 import us.bringardner.parley.iam.AuthorizationResult;
@@ -593,8 +592,4 @@ public class Pop3RequestProcessor extends AbstractMailProcessor implements POP3 
 		}
 	}
 
-	@Override
-	protected ILogger getLogger(String name) {
-		return super.getLogger("Pop3RequestProcessor");
-	}
 }
