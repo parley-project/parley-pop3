@@ -168,7 +168,7 @@ public class Pop3Server extends AbstractMailServer implements POP3 {
 				ret.add(us.bringardner.parley.mail.server.MailServerMain.service(new Pop3Server(p, POP3_NAME, false), "POP3 server", "pop3"));
 			}
 			int p = POP3S_PORT;
-			ret.add(ServerMain.optional(us.bringardner.parley.mail.server.MailServerMain.service(new Pop3Server(p, POP3_NAME, true), "POP3 server (implicit TLS)", "pop3s")));
+			ret.add(us.bringardner.parley.mail.server.MailServerMain.service(new Pop3Server(p, POP3_NAME, true), "POP3 server (implicit TLS)", "pop3s"));
 			return ret;
 		});
 	}
