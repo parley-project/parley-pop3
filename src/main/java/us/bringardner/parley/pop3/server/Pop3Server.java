@@ -186,7 +186,7 @@ public class Pop3Server extends AbstractMailServer implements POP3 {
 			@Override
 			public IProcessor getProcessor() {
 				Pop3RequestProcessor ret = new Pop3RequestProcessor();
-				ret.setLogLevel(Pop3Server.this.getLogLevel());
+				ret.useConfigurationOf(Pop3Server.this);
 				return ret;
 			}
 		});
