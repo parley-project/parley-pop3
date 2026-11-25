@@ -79,7 +79,7 @@ public class TestPop3Server {
 		server = new Pop3Server(0, Pop3Server.POP3_NAME, false);
 		server.setMaildropRoot(root);
 		server.setLoginFailureDelay(0);
-		server.setLogLevel(LogLevel.ERROR);
+		server.getLogger().setLevel(LogLevel.ERROR);
 		server.startAndWait(10000);
 		port = server.getLocalPort();
 	}
@@ -610,8 +610,8 @@ public class TestPop3Server {
 	@Test
 	public void testAccessControlUnavailable() throws Exception {
 		server.setUserRegistry(downAcl());
-		us.bringardner.parley.core.LogLevel level = server.getLogLevel();
-		server.setLogLevel(LogLevel.NONE);
+		us.bringardner.parley.core.LogLevel level = server.getLogger().getLevel();
+		server.getLogger().setLevel(LogLevel.NONE);
 		try (Client c = new Client()) {
 			// never counted as a failed login: the connection stays open however many times
 			for (int i = 0; i < 6; i++) {
@@ -627,7 +627,7 @@ public class TestPop3Server {
 		} finally {
 			// back to the registry made from the test settings
 			server.setUserRegistry(null);
-			server.setLogLevel(level);
+			server.getLogger().setLevel(level);
 		}
 	}
 
@@ -642,8 +642,8 @@ public class TestPop3Server {
 		} finally {
 			server.setUserRegistry(null);
 		}
-		us.bringardner.parley.core.LogLevel level = server.getLogLevel();
-		server.setLogLevel(LogLevel.NONE);
+		us.bringardner.parley.core.LogLevel level = server.getLogger().getLevel();
+		server.getLogger().setLevel(LogLevel.NONE);
 		server.setUserRegistry(downAcl());
 		try (Client c = new Client()) {
 			Matcher m = Pattern.compile("<[^<>]+>").matcher(c.greeting);
@@ -655,7 +655,7 @@ public class TestPop3Server {
 			c.cmd("QUIT");
 		} finally {
 			server.setUserRegistry(null);
-			server.setLogLevel(level);
+			server.getLogger().setLevel(level);
 		}
 	}
 
@@ -664,10 +664,10 @@ public class TestPop3Server {
 	public void testPermissionUnavailable() throws Exception {
 		maildrop("tony");
 		deliver(server.getMaildropDirectory("tony"), "Subject: t\r\n\r\nx\r\n");
-		us.bringardner.parley.core.LogLevel level = server.getLogLevel();
+		us.bringardner.parley.core.LogLevel level = server.getLogger().getLevel();
 		try (Client c = new Client()) {
 			c.login("tony", "secret");
-			server.setLogLevel(LogLevel.NONE);
+			server.getLogger().setLevel(LogLevel.NONE);
 			server.setUserRegistry(downAcl());
 			String reply = c.cmd("DELE 1");
 			assertTrue(reply.startsWith("-ERR [SYS/TEMP]"), reply);
@@ -677,7 +677,7 @@ public class TestPop3Server {
 			c.cmd("QUIT");
 		} finally {
 			server.setUserRegistry(null);
-			server.setLogLevel(level);
+			server.getLogger().setLevel(level);
 		}
 	}
 
@@ -1103,7 +1103,7 @@ public class TestPop3Server {
 	/** To-Do 19.7: POP3 QUIT is the reason in the server's disconnect line. */
 	@Test
 	public void testQuitIsTheReasonInTheDisconnectLine() throws Exception {
-		LogLevel level = server.getLogLevel();
+		LogLevel level = server.getLogger().getLevel();
 		java.util.List<String> lines = new java.util.concurrent.CopyOnWriteArrayList<>();
 		java.util.logging.Handler handler = new java.util.logging.Handler() {
 			@Override
@@ -1123,7 +1123,7 @@ public class TestPop3Server {
 		};
 		java.util.logging.Logger root = java.util.logging.Logger.getLogger("");
 		root.addHandler(handler);
-		server.setLogLevel(LogLevel.INFO);
+		server.getLogger().setLevel(LogLevel.INFO);
 		try (java.net.Socket socket = new java.net.Socket("localhost", server.getLocalPort())) {
 			socket.setSoTimeout(10000);
 			java.io.BufferedReader in = new java.io.BufferedReader(
@@ -1149,7 +1149,7 @@ public class TestPop3Server {
 			assertNotNull(line, "no disconnect line in " + lines);
 			assertTrue(line.startsWith("[" + server.getName() + "-") && line.contains("] Disconnected (client quit) after "), line);
 		} finally {
-			server.setLogLevel(level);
+			server.getLogger().setLevel(level);
 			root.removeHandler(handler);
 		}
 	}
