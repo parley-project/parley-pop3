@@ -116,6 +116,16 @@ public class Pop3Server extends AbstractMailServer implements POP3 {
 	}
 
 	@Override
+	protected String getSettingsFileName() {
+		return "parley-pop3.properties";
+	}
+
+	@Override
+	protected String getSettingsFileProperty() {
+		return CONFIG_PROP;
+	}
+
+	@Override
 	protected String getRootProperty() {
 		return ROOT_PROP;
 	}
@@ -151,34 +161,19 @@ public class Pop3Server extends AbstractMailServer implements POP3 {
 	 * runs (MailServerMain).
 	 */
 	public static void main(String[] args) throws Exception {
-		ServerMain.run("Pop3Server", args, CONFIG_PROP, "parley-pop3.properties", () -> {
+		ServerMain.run("Pop3Server", args, () -> {
 			java.util.List<ServerMain.Service> ret = new java.util.ArrayList<>();
 			{
-				int p = standalonePort(POP3_PREFIX, POP3_PORT);
+				int p = POP3_PORT;
 				ret.add(us.bringardner.parley.mail.server.MailServerMain.service(new Pop3Server(p, POP3_NAME, false), "POP3 server", "pop3"));
 			}
-			if (hasKeyStore(POP3S_PREFIX)) {
-				int p = standalonePort(POP3S_PREFIX, POP3S_PORT);
-				ret.add(us.bringardner.parley.mail.server.MailServerMain.service(new Pop3Server(p, POP3_NAME, true), "POP3 server (implicit TLS)", "pop3s"));
-			} else {
-				System.err.println("Warning: POP3 server (implicit TLS) is skipped: no TLS key store (set " + MAIL_TLS_KEY_STORE_PROP + " or " + POP3S_PREFIX + ".keyStoreName)");
-			}
+			int p = POP3S_PORT;
+			ret.add(ServerMain.optional(us.bringardner.parley.mail.server.MailServerMain.service(new Pop3Server(p, POP3_NAME, true), "POP3 server (implicit TLS)", "pop3s")));
 			return ret;
 		});
 	}
 
-	/** A server's port in a standalone process: {@code <prefix>.port}, else its standard port */
-	private static int standalonePort(String prefix, int standard) {
-		String v = System.getProperty(prefix + ".port");
-		return v == null || v.trim().isEmpty() ? standard : Integer.parseInt(v.trim());
-	}
 
-	/** A TLS key store for this server in a standalone process: the suite's, or its own */
-	private static boolean hasKeyStore(String prefix) {
-		String a = System.getProperty(MAIL_TLS_KEY_STORE_PROP);
-		String b = System.getProperty(prefix + ".keyStoreName");
-		return (a != null && !a.trim().isEmpty()) || (b != null && !b.trim().isEmpty());
-	}
 
 	private void initMe() {
 		setName("Pop3Server");
