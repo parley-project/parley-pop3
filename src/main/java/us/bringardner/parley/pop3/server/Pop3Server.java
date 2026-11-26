@@ -184,13 +184,26 @@ public class Pop3Server extends AbstractMailServer implements POP3 {
 				return ret;
 			}
 		});
+		readServerSettings();
+
+		// make the user registry now (authenticationProvider property), or warn that there is none
+		warnIfNoAccessControl();
+	}
+
+	/** This server's own settings, read when it is made and again when the start has read its file */
+	private void readServerSettings() {
 		initAutologout(propertyName(AUTOLOGOUT), DEFAULT_AUTOLOGOUT);
 		setMaxIdleConnection(getAutologout());
 		setRequireTls(getBooleanProperty(propertyName(REQUIRE_TLS), false));
 		initMaildropRoot(FILE_SOURCE_PROP, null, ROOT_PROP, null, DEFAULT_ROOT, DEFAULT_ROOT_WINDOWS);
+	}
 
-		// make the user registry now (authenticationProvider property), or warn that there is none
-		warnIfNoAccessControl();
+	@Override
+	protected void settingsRead(boolean fromFile) throws java.io.IOException {
+		super.settingsRead(fromFile);
+		if (fromFile) {
+			readServerSettings();
+		}
 	}
 
 	// ------------------------------------------------------------------ maildrops
